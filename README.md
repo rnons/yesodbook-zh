@@ -9,6 +9,10 @@
 
 翻译这本书完全是为了督促自己深入学习Yesod。我读过的中文技术书籍极为有限，词汇量也非常小，慎读！
 
+## 目录
+
+[第一章 引言](https://github.com/rnons/yesodbook-zh/blob/master/chapters/introduction.asciidoc)
+
 [Yesod]: http://www.yesodweb.com/
 [Haskell]: http://www.haskell.org/
 [Yesodbook源文件]: https://github.com/yesodweb/yesodweb.com-content/tree/master/book
