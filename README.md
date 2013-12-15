@@ -12,6 +12,7 @@
 ## 目录
 
 [第一章 引言](https://github.com/rnons/yesodbook-zh/blob/master/chapters/introduction.asciidoc)
+[第二章 Haskell](https://github.com/rnons/yesodbook-zh/blob/master/chapters/haskell.asciidoc)
 
 [Yesod]: http://www.yesodweb.com/
 [Haskell]: http://www.haskell.org/
