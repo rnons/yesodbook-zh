@@ -180,7 +180,9 @@ renderMyRoute Home = "http://example.com/profile/home"
 renderMyRoute Time = "http://example.com/display/time"
 ----
 
-[NOTE] ==== URL呈现函数实际上比这个要复杂一些。它们需要表示请求参数(query
+[NOTE]
+====
+URL呈现函数实际上比这个要复杂一些。它们需要表示请求参数(query
 string parameters)、处理构造函数中的记录(record)，并且智能的处理域名。但实际上
 ，你不需要担心这些，因为Yesod会自动为你生成URL呈现函数。需要指出的一点是，为了
 处理请求参数，类型标识(type signature)会略微复杂：
