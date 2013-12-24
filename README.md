@@ -19,6 +19,8 @@
 
 [第四章 莎氏模板](https://github.com/rnons/yesodbook-zh/blob/master/chapters/shakespearean-templates.asciidoc)
 
+[第五章 控件](https://github.com/rnons/yesodbook-zh/blob/master/chapters/widgets.asciidoc)
+
 [Yesod]: http://www.yesodweb.com/
 [Haskell]: http://www.haskell.org/
 [Yesodbook源文件]: https://github.com/yesodweb/yesodweb.com-content/tree/master/book
