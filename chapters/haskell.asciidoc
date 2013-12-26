@@ -131,7 +131,7 @@ link:$$http://www.haskell.org/ghc/docs/latest/html/users_guide/ghc-language-feat
 === 重载字符串(Overloaded Strings)
 
 +"hello"+的类型是什么？传统上，它是+String+类型。+String+的定义是+type String =
-\[Char\]+。不幸的是，这样有很多局限性：
+[Char]+。不幸的是，这样有很多局限性：
 
 * 用字符串表示文本数据是一种非常低效的方法。我们需要为每个字符分配额外的内存以
   表示字符连接操作，并且每个字符本身也要占用一个字长。
