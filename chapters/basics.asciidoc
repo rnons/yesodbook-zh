@@ -144,7 +144,7 @@ string)。再次说明，我们的例子很简单，所以代码也同样简单�
 +body+等标签。在Yesod型类一章中，我们将会看到可以重定义(override)这个函数以实现
 更多功能。
 
-在上例中，我们把+\[whamlet|Hello World!|\]+传给+defaultLayout+。+whamlet+是另一
+在上例中，我们把+[whamlet|Hello World!|]+传给+defaultLayout+。+whamlet+是另一
 个准引用。在这里，它把Hamlet语句转化成一个控件(Widget)。Hamlet是Yesod默认的HTML
 模板引擎。将Hamlet与Cassius、Lucius和Julius配合使用，你可以以完全类型安全且编译
 时检验的方式创建HTML、CSS和Javascript。我们会在莎氏模板一章中详述。

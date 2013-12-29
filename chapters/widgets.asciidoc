@@ -139,7 +139,7 @@ NOTE: 你实际上可以覆盖默认行为，让脚本和样式代码出现在�
 
 setTitle:: 将一些HTML代码转换成页面标题。
 
-addCassiusMedia, addLuicusMedia:: 与toWidget一样，但需要一个额外的参数来表示样
+toWidgetMedia:: 与toWidget一样，但需要一个额外的参数来表示样
 式所应用的媒介。这对于创建比如说打印样式会有用。
 
 addStylesheet:: 通过+<link>+标签，增加一个外部样式表的引用。输入参数是类型安全
