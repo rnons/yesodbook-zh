@@ -21,6 +21,8 @@
 
 [第五章 控件](https://github.com/rnons/yesodbook-zh/blob/master/chapters/widgets.asciidoc)
 
+[第六章 Yesod型类](https://github.com/rnons/yesodbook-zh/blob/master/chapters/yesod-typeclass.asciidoc)
+
 [Yesod]: http://www.yesodweb.com/
 [Haskell]: http://www.haskell.org/
 [Yesodbook源文件]: https://github.com/yesodweb/yesodweb.com-content/tree/master/book

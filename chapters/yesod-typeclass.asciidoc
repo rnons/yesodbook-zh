@@ -1,0 +1,426 @@
+== Yesod型类(Typeclass)
+
+我们的每一个Yesod应用都需要实例化++Yesod++型类。到目前为止，我们只见到了
+++defaultLayout++方法。本章中，我们会讲解++Yesod++型类的很多方法。
+
+++Yesod++型类是给应用定义配置信息的集中点。每个配置都有默认的定义，默认值通常也
+是对的。但为了构建强大、定制的应用，你通常还是得重定义(override)其中一些方法。
+
+[NOTE]
+====
+我们常常被问到一个问题，“为什么用型类而不是记录(record type)？使用型类有两大好
+处：
+
+* Yesod型类里的方法经常需要调用型类里的其它方法。在型类中，这种用法很普通。但
+  对于记录，就会更复杂。
+
+* 型类的语法更简洁。我们想提供默认的实现，让用户在需要的时候重定义部分函数。
+  型类对此的解决方法简单且语法漂亮(syntactically nice)。而记录会有更大的开销
+  (overhead)。
+
+====
+
+=== 呈现(Rendering)和解析(Parsing)URL
+
+我们已经提到Yesod能自动将类型安全URL转换为可插入HTML页面的文本形式URL。假设我
+们有这样的路由定义：
+
+[source, haskell]
+----
+mkYesod "MyApp" [parseRoutes|
+/some/path SomePathR GET
+]
+----
+
+如果我们把++SomePathR++写在hamlet模板里，Yesod是怎么呈现它的呢？Yesod总是会去
+构造__绝对(absolute)__路径URL。如果我们要创建XML站点地图和Atom源，或是要发送邮
+件，绝对路径会特别有用。但为了构造绝对路径URL，我们需要知道应用的域名。
+
+你可能认为我们可以从用户请求中得到域名信息，但我们还是需要知道端口号。即使我们
+从请求知道了端口号，那到底是HTTP还是HTTPS呢？即使你都知道了，这种方法意味着用
+户以不同的方式提交请求，会导致生成不同的URL。举例来说，用户连接到“example.com”
+或“www.example.com”会导致我们生成不同的URL。对于搜索引擎优化(Search Engine
+Optimization)，我们希望能巩固(consolidate)一个标准的(canonical)URL。
+
+最后，Yesod对你从__哪里__托管应用不做任何假设。比如，我可能有一个大体上静态的
+站点(http://static.example.com/)，但我想在/wiki/路径加入一个Yesod驱动的维基子
+站。应用无法确知托管维基子站的路径。所以与其猜测，Yesod需要你告诉它应用的根路
+径。
+
+以wiki子站为例，你需要这样写你的++Yesod++实例：
+
+
+[source, haskell]
+----
+instance Yesod MyWiki where
+    approot = ApprootStatic "http://static.example.com/wiki"
+----
+
+注意链接最后没有接斜线。然后，当Yesod要给++SomePathR++构造URL时，它能确定
+++SomePathR++的相对路径是++/some/path++，将其追加到approot，就得到了
+++http://static.example.com/wiki/some/path++。
+
+++approot++的默认值是++ApprootRelative++，它的意思是``不要加任何前缀''。这种情
+况下，生成的URL会是++/some/path++。如果你的程序托管在域名的根路径，这种方法对
+于程序内部链接可以很好工作。但如果有需要用到绝对路径URL的情况(比如发送邮件)，
+最好还是使用++ApprootStatic++。
+
+就像别的常用配置一样，脚手架站点已经帮你配置好。如果你使用脚手架项目，你可以从
+配置文件修改approot值。
+
+==== joinPath
+
+为了将一个类型安全URL转换为文本值，Yesod使用了两个辅助函数。第一个是
+++RenderRoute++类中的++renderRoute++方法。每个类型安全URL都是这个类的实例。
+++renderRoute++将一个值转换成一列路径段(path pieces)。比如，上例中的
+++SomePathR++会被转换成++["some", "path"]++。
+
+NOTE: 实际上，++renderRoute++既生成路径段，也生成一列请求参数。默认的
+++renderRoute++实现总是提供空的请求参数列表。不过你可以重定义它。一个显著的例
+子是静态子站(static subsite)，它会将文件内容的哈希值作为请求参数，这样便于缓存
+。
+
+另一个辅助函数是Yesod类中的++joinPath++。这个函数有四个输入参数：
+
+* 基础类型值(foundation value)
+* 应用根路径
+* 一列路径段
+* 一列请求参数
+
+它返回文本形式的URL。默认实现就是``正常的''：它用斜线分隔路径段，追加在应用根
+路径后，最后追加请求参数。
+
+如果你对默认的URL呈现结果满意，那你不需要修改它。尽管如此，如果你想修改URL呈现
+结果，比如在最后加一个斜线，那就应该在这里修改。
+
+==== cleanPath
+
+++joinPath++的反面是++cleanPath++。让我们来看看分发过程(dispatch process)中是
+怎么用到++cleanPath++的：
+
+. 用户请求的路径被分离成一串路径段。
+
+. 将一串路径段传递给++cleanPath++函数。
+
+. 如果++cleanPath++说要重定向(++Left++返回值)，那将301返回值发送给用户。这被用
+  来强制使用标准URL(canonical URL)，比如移除多余的斜线。
+
+. 其余情况，我们尝试分发++cleanPath++的结果(++Right++返回值)，如果成功(有相应
+  的处理函数)，则发送响应。否则，发送404。
+
+这种结构允许子站完全控制它们的URL显示方式，同时允许主站修改URL。作为一个简单的
+例子，让我们看看可以怎样修改Yesod来让URL总是以斜线结尾：
+
+[source, haskell]
+----
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE QuasiQuotes           #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeFamilies          #-}
+import           Blaze.ByteString.Builder.Char.Utf8 (fromText)
+import           Control.Arrow                      ((***))
+import           Data.Monoid                        (mappend)
+import qualified Data.Text                          as T
+import qualified Data.Text.Encoding                 as TE
+import           Network.HTTP.Types                 (encodePath)
+import           Yesod
+
+data Slash = Slash
+
+mkYesod "Slash" [parseRoutes|
+/ RootR GET
+/foo FooR GET
+|]
+
+instance Yesod Slash where
+    joinPath _ ar pieces' qs' =
+        fromText ar `mappend` encodePath pieces qs
+      where
+        qs = map (TE.encodeUtf8 *** go) qs'
+        go "" = Nothing
+        go x = Just $ TE.encodeUtf8 x
+        pieces = pieces' ++++ [""]
+
+    -- 我们想保证使用标准URL。因此，如果URL不是以斜线结尾，则重定向。
+    -- 但空路径维持不变。
+    cleanPath _ [] = Right []
+    cleanPath _ s
+        | dropWhile (not . T.null) s == [""] = -- 唯一的空路径是最后一个
+            Right $ init s
+        -- 因为joinPath会在最后追加斜线，我们只需移除空路径。
+        | otherwise = Left $ filter (not . T.null) s
+
+getRootR :: Handler Html
+getRootR = defaultLayout
+    [whamlet|
+        <p>
+            <a href=@{RootR}>RootR
+        <p>
+            <a href=@{FooR}>FooR
+    |]
+
+getFooR :: Handler Html
+getFooR = getRootR
+
+main :: IO ()
+main = warp 3000 Slash
+----
+
+首先，让我们看看++joinPath++的实现。这基本上是Yesod的默认实现，只有一个不同：
+我们在最后加了个空字符串。当处理路径段时，一个空字符串会追加另一个斜线。所以增
+加空字符串会强制路径以斜线结尾。
+
+++cleanPath++更有技巧一些。首先，我们检查是否为空路径，如果是则往下传递。我们
+使用Right值来表示不需要重定向。下一条语句实际上是检查可能出现的两种不同的URL问
+题：
+
+* 有两个紧挨的斜线，在我们的路径段中会变成空字符串。
+* 路径不以斜线结尾，导致路径段最后不是空字符串。
+
+假设这两种情况都不符合，那只有最后一段路径为空，我们就可以基于此进行分发。如果
+不是这样，我们就要重定向到一个标准URL。这种情况下，我们把所有空段都剔除，也不
+在最后追加斜线，因为++joinPath++会为我们加。
+
+=== defaultLayout
+
+大部分网站都会给所有页面应用同一个模板。++defaultLayout++就是做这个的。你当然
+可以定义自己的函数，然后调用它作为模板，不过如果你重定义++defaultLayout++，所
+有Yesod生成的页面(错误页面、登录页面)都会自动应用(新的)模板样式。
+
+要重定义也很直接：我们用++widgetToPageContent++将一个++Widget++转换为标题、头
+部和正文，然后用++giveUrlRenderer++将Hamlet模板转换为++Html++值。我们甚至可以
+在++defaultLayout++中增加其它控件，比如Lucius模板。更多信息，参见之前“控件”那
+一章。
+
+如果你使用的是脚手架站点，你可以修改++templates/default-layout.hamlet++文件和
+++templates/default-layout-wrapper.hamlet++文件。
+
+==== getMessage
+
+虽然我们还没讲到会话(session)，但我想在这里提一下++getMessage++函数。Web开发的
+一个常见模式是在一个处理函数中设定一条消息，然后在另一个处理函数中显示消息。比
+如说，如果用户++POST++了一个表单，你可能将他/她重定向到另一个页面，并附带``表
+单提交完成''的消息。这被称为
+link:http://en.wikipedia.org/wiki/Post/Redirect/Get[Post/Redirect/Get]模式。
+
+为了能做到这一点，Yesod自带了一对函数：++setMessage++在用户会话中设置一条消息
+，++getMessage++接收消息(并从会话中清除它，以免消息重复显示)。建议你把
+++getMessage++的结果放到++defaultLayout++里。比如：
+
+[source, haskell]
+----
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE QuasiQuotes           #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeFamilies          #-}
+import           Yesod
+import Data.Time (getCurrentTime)
+
+data App = App
+
+mkYesod "App" [parseRoutes|
+/ HomeR GET
+|]
+
+instance Yesod App where
+    defaultLayout contents = do
+        PageContent title headTags bodyTags <- widgetToPageContent contents
+        mmsg <- getMessage
+        giveUrlRenderer [hamlet|
+            $doctype 5
+
+            <html>
+                <head>
+                    <title>#{title}
+                    ^{headTags}
+                <body>
+                    $maybe msg <- mmsg
+                        <div #message>#{msg}
+                    ^{bodyTags}
+        |]
+
+getHomeR :: Handler Html
+getHomeR = do
+    now <- liftIO getCurrentTime
+    setMessage $ toHtml $ "You previously visited at: " ++++ show now
+    defaultLayout [whamlet|<p>Try refreshing|]
+
+main :: IO ()
+main = warp 3000 App
+----
+
+我们将在会话那一章更详细的讨论++getMessage++/++setMessage++。
+
+=== 自定义错误页面
+
+专业网站的标志之一是精心设计的错误页面。Yesod会自动用你的++defaultLayout++来显
+示错误页面。但有时，你会想更进一步。这种情况下，你需要重定义++errorHandler++方
+法：
+
+[source, haskell]
+----
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE QuasiQuotes           #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeFamilies          #-}
+import           Yesod
+
+data App = App
+
+mkYesod "App" [parseRoutes|
+/ HomeR GET
+/error ErrorR GET
+/not-found NotFoundR GET
+|]
+
+instance Yesod App where
+    errorHandler NotFound = fmap toTypedContent $ defaultLayout $ do
+        setTitle "Request page not located"
+        toWidget [hamlet|
+<h1>Not Found
+<p>We apologize for the inconvenience, but the requested page could not be located.
+|]
+    errorHandler other = defaultErrorHandler other
+
+getHomeR :: Handler Html
+getHomeR = defaultLayout
+    [whamlet|
+        <p>
+            <a href=@{ErrorR}>Internal server error
+            <a href=@{NotFoundR}>Not found
+    |]
+
+getErrorR :: Handler ()
+getErrorR = error "This is an error"
+
+getNotFoundR :: Handler ()
+getNotFoundR = notFound
+
+main :: IO ()
+main = warp 3000 App
+----
+
+这里我们定义了一个404错误页面。我们可以将其它错误类型交给
+++defaultErrorHandler++处理。由于类型限制，我们需要在函数开使时使用++fmap
+toTypedContent++，然后你就可以像写一个普通处理函数那样写了。(我们会在下一章详
+述++TypedContent++。)
+
+事实上，你甚至可以使用特殊的响应，比如重定向：
+
+[source, haskell]
+----
+    errorHandler NotFound = redirect HomeR
+    errorHandler other = defaultErrorHandler other
+----
+
+
+NOTE: 虽然你__可以__这么做，但我真的不建议这样。404就应该是404。
+
+=== 外部CSS和Javascript
+
+NOTE: 这里描述的功能都自动包含在脚手架项目里，因此你不用担心要手动去实现它们。
+
+Yesod类里面最强大，也最吓人的方法之一是++addStaticContent++。记得一个控件可以
+由多个部分组成，包括CSS和Javascript。CSS/JS究竟是怎么进到用户浏览器的呢？默认
+情况下，它们分别位于页面++<head>++部分的++<style>++标签和++<script>++标签里。
+
+这样很简单，但不够高效。每一次加载页面都需要重新加载CSS/JS，即使它们都没变！我
+们真正想要的是把这些内容保存在外部文件里，然后从HTML文件里引用它们。
+
+这就是++addStaticContent++的工作。它接受三个参数：文件扩展名(++css++或++js++)
+、mime类型(++text/css++或++text/javascript++)和内容本身。它可能有三种返回值：
+
+Nothing:: 不保存静态文件；将内容直接嵌在HTML中。这是默认情况。
+
+Just (Left Text):: 内容保存在外部文件中，使用指定的文本链接引用它。
+
+Just (Right (Route a, Query)):: 内容保存在外部文件中，但使用类型安全URL和请求
+参数来引用它。
+
+如果你要把静态文件存放在外部服务器上，比如CDN或存储服务器，++Left++返回值会有
+用。++Right++返回值更常见，而且它与静态子站能很好配合。推荐给大多数应用使用，
+也是脚手架默认提供的方法。
+
+NOTE: 你可能会想：如果这是推荐的方法，为什么不让它作为默认返回值？问题在于它有
+一些前提条件并不总是满足：你的应用需要有静态子站，需要指定静态文件存放口径。
+
+脚手架项目中的++addStaticContent++帮你做了很多聪明的决定：
+
+* 它自动用hjsmin包来最小化你的Javascript代码。
+* 它用文件内容的哈希值来命名文件。这意味着你可以在HTTP headers中把cache的过期
+  时间设置在很久以后，而不用担心会显示过期内容。
+* 此外，由于文件名是哈希值，可以保证如果有同名文件存在，就不需要重新输出文件。
+  脚手架项目会自动检查文件是否存在，如非必要避免耗费资源的磁盘写操作。
+
+=== 更智能的静态文件
+
+Google有一条重要的优化建议：
+link:http://code.google.com/speed/page-speed/docs/request.html#ServeFromCookielessDomain[
+从单独的域名托管静态文件]。这种方法的好处是，主域名上设置的cookie在请求静态文
+件时不需要发送，从而节省一点带宽。
+
+为促成这一点，我们有++urlRenderOverride++方法。这个方法截取正常的URL呈现方式，
+将某些路由设成特殊值。比如，脚手架站点中它是这样定义的：
+
+
+[source, haskell]
+----
+urlRenderOverride y (StaticR s) =
+    Just $ uncurry (joinPath y (Settings.staticRoot $ settings y)) $ renderRoute s
+
+urlRenderOverride _ _ = Nothing
+----
+
+这意味着静态路由有一个特殊的根路径，你可以将其配置成另一个域名。这也是类型安全
+URL强大、可伸缩的一个明证：仅用一行代码，你就可以改变所有指向静态路由的链接。
+
+=== 验证/授权(Authentication/Authorization)
+
+对于简单的应用，在每个处理函数中检查权限是简单、便利的方法。然而，这样不方便扩
+展(scale)。最终，你需要更好的声明方法。有些系统会定义ACL、特殊的配置文件、其它
+的戏法(hocus-pocus)。在Yesod中，只用普通的Haskell即可。涉及到三个方法：
+
+isWriteRequest:: 判断当前请求是读操作还是写操作。默认情况下，Yesod遵循RESTful
+原则，将++GET++、++HEAD++、++OPTIONS++和++TRACE++请求视为读操作，其它请求视为
+写操作。
+
+isAuthorized:: 输入参数是一条路由(即类型安全URL)和一个布尔值用来表明该请求是否
+为写操作。它返回一个++AuthResult++值，可以是三种情况之一：
+* ++Authorized++
+* ++AuthenticationRequired++
+* ++Unauthorized++
+
+默认情况下，它给所有请求返回++Authorized++。
+
+authRoute:: 如果++isAuthorized++返回的是++AuthenticationRequired++，重定向至指
+定路由。如果没有提供路由(默认情况)，返回401``需要验证''消息。
+
+这些方法能很好的与yesod-auth包配合，脚手架站点使用它们来提供多种验证选项，比如
+OpenId、Mozilla Persona、email、用户名和Twitter。我们会在“验证和授权”一章详述
+。
+
+=== 一些简单设置
+
+并不是Yeosd类中的每一项都很复杂。有些方法很简单，我们来看一下：
+
+maximumContentLength:: 为了防止拒绝服务(DoS: Denial of Server)攻击，Yeosd会限
+制请求的大小。有时，你想对某些路由解除限制(比如文件上传页面)。就应该在这里修改
+。
+
+fileUpload:: 基于请求的大小，决定怎么处理用户上传的文件。两种常见的方法是将文
+件储存在内存中，或是储存在临时文件中。默认情况下，小请求储存在内存里，大请求储
+存在硬盘上。
+
+shouldLog:: 决定一条日志信息(及其日志源和日志等级)是否需要记录成日志。这允许你
+在应用中放置大量的调试信息，而只在需要时开启日志记录。
+
+最新的信息，请查看Yesod类的Haddock API文档。
+
+=== 小结
+
+Yesod类有很多可重定义的方法，允许你配置应用。他们都是可选的，因为有合理的默认
+值。通过使用Yesod内置的++defaultLayout++和++getMessage++等方法，你可以在全网站
+应用一种统一的视觉风格，包括Yesod自动生成的页面，如错误页面和登录页面等。
+
+我们在本章中没有涉及Yesod类的全部方法。要想知道全部方法，应该查看Haddock文档。
