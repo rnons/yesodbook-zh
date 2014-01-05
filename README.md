@@ -23,6 +23,8 @@
 
 [第六章 Yesod型类](https://github.com/rnons/yesodbook-zh/blob/master/chapters/yesod-typeclass.asciidoc)
 
+[第七章 路由和处理函数](https://github.com/rnons/yesodbook-zh/blob/master/chapters/routing-and-handlers.asciidoc)
+
 [Yesod]: http://www.yesodweb.com/
 [Haskell]: http://www.haskell.org/
 [Yesodbook源文件]: https://github.com/yesodweb/yesodweb.com-content/tree/master/book

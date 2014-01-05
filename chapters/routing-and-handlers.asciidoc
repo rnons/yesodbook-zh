@@ -1,0 +1,406 @@
+== 路由(Routing)和处理函数(Handlers)
+
+如果你把Yesod看作是MVC(Model-View-Controller)框架，那路由和处理函数就是控制器
+部分。作为对比，我们看看两种在其它web开发环境中会采用的路由方法：
+
+* 基于文件名的分发。比如，PHP和ASP就是这么做的。
+* 有一个中央路由函数，基于正则表达式去解析路由。Django和Rails用的这种方法。
+
+Yesod在原理上更接近后一种方法。即便如此，还是有显著的差别。Yesod对路由段进行模
+式匹配，而不是用正则表达式。Yesod会创建一个中间数据类型(称之为路由数据类型，或
+类型安全URL)，以及(路由与处理函数间)双向的转换函数，而不像(Django和Rails等)只
+有路由到处理函数的映射。
+
+手动来写这样一个高级系统的的代码会很繁琐且容易出错。因此，Yesod定义了领域专用
+语言(DSL: Domain Specific Language)来声明路由，并且提供了Haskell模板函数将DSL
+转换为Haskell代码。本章会讲解路由声明的语法，给你看一些DSL生成的代码，并解释路
+由与处理函数间的交互。
+
+=== 路由语法
+
+与其尝试将路由声明硬塞进现有语法中，Yesod的方法是使用一种专为路由设计的简化的
+语法。这样做的好处是，代码更容易写，并且没有Yesod经验的人也能很容易的读懂和理
+解应用的站点地图(sitemap)。
+
+下面是这种语法的一个简单例子：
+
+[source, routes]
+----
+/             HomeR     GET
+/blog         BlogR     GET POST
+/blog/#BlogId BlogPostR GET POST
+
+/static       StaticR   Static getStatic
+----
+
+接下来几个小节会详细解释路由声明是怎么工作的。
+
+==== 路径段(Pieces)
+
+Yesod收到请求后的第一件事是将请求路径分段。分段依据是斜线。比如：
+
+[source, haskell]
+----
+toPieces "/" = []
+toPieces "/foo/bar/baz/" = ["foo", "bar", "baz", ""]
+----
+
+你可能注意到当路径末端有斜线或双斜线("/foo//bar//")时会很有趣，还有一些其它情
+况也是。Yeosd鼓励使用标准URL(canonical URL)；如果用户请求的的路径最后有斜线，
+或包含双斜线，他们会被自动重定向到标准路径。这保证了你每个资源只有一个URL，也
+有助于提升搜索排名。
+
+这意味着你不用考虑URL的具体结构：你可以安心于考虑路径段，而Yesod会自动用斜线连
+接路径段并负责转义(escape)有问题的字符。
+
+顺便说一句，如果你想更好的控制路径如何分段及如何重新拼接，你可以看“Yesod型类”
+一章中关于++cleanPath++和++joinPath++方法的讲解。
+
+===== 路径段的类型
+
+声明路由时，你有三种类型可选：
+
+Static:: 这是URL中必须精确匹配的纯文本部分。
+
+Dynamic single:: 这是一个路径段(就是在两根斜线之间的部分)，但表示的是用户提
+交的值。这是在页面请求中接收用户输入的主要方法。这些段以#号开始，后接数据类型
+。该数据类型必须是++PathPiece++的实例。
+
+Dynamic multi:: 与上同，但URL中有多个段可以接收用户输入。它必须是路由声明的最
+后一个路径段。以*号开始，后接数据类型，该数据类型必须是++PathMultiPiece++的实
+例。这种情况并不像上面两种那么常见，但对于有些功能，比如用静态树来表示文件结构
+或维基结构，会很有用。
+
+让我们看一些你可能会用上的资源模式(resource pattern)的标准写法。最简单的，应用
+的根路径是++/++。同样也很简单，你可能想把FAQ放在++/page/faq++。
+
+现在假设我们要写一个斐波那契(Fibonacci)网站。你可以这样构建URL：++/fib/#Int++。
+但这会有个小问题：我们不希望负数和0传递进我们的应用。幸运的是，类型系统能做到
+这一点：
+
+[source, haskell]
+----
+newtype Natural = Natural Int
+instance PathPiece Natural where
+    toPathPiece (Natural i) = T.pack $ show i
+    fromPathPiece s =
+        case reads $ T.unpack s of
+            (i, ""):_
+                | i < 1 -> Nothing
+                | otherwise -> Just $ Natural i
+            [] -> Nothing
+----
+
+在第一行我们定义了一个简单的newtype来阻止非法输入，它封装了一个Int值。我们可以
+看到++PathPiece++是一个型类并有两个方法。++toPathPiece++仅仅是将输入转为
+++Text++值。++fromPathPiece++__尝试__将++Text++值转换为我们的数据类型，转换失
+败则返回++Nothing++。通过使用这个数据类型，我们可以保证只有自然数会传递给处理
+函数，再一次用类型系统保卫了我们的边界。
+
+NOTE: 在现实的应用中，我们还需要保证在应用内部不会不小心构造出无效的
+++Natural++值。要做到这一点，我们可以用像
+link:http://www.haskell.org/haskellwiki/Smart_constructors[智能构造函数(smart
+constructors)]这样的方法。就这个例子来说，我们为保持代码简单而没有这样做。
+
+定义++PathMultiPiece++也同样简单。假设我们的一个Wiki站点至少有两级结构；我们
+可以定义这样的数据类型：
+
+[source, haskell]
+----
+data Page = Page Text Text [Text] -- 2级或更多
+instance PathMultiPiece Page where
+    toPathMultiPiece (Page x y z) = x : y : z
+    fromPathMultiPiece (x:y:z) = Just $ Page x y z
+    fromPathMultiPiece _ = Nothing
+----
+
+==== 资源名称
+
+每一条资源模式还有一个名字。这个名字会成为类型安全URL构造函数的名字。因此，它
+必须以大写字母开头。并且习惯上，资源名称都以大写字母R结尾。这不是强制性的，只
+是惯例。
+
+(类型安全URL)构造函数的准确定义依赖于它所对应的资源模式。资源模式中的动态部分
+，不管是一个段还是多个段，其数据类型都会成为构造函数的参数。这就在应用中为类型
+安全URL和合法URL建立了一对一的关联。
+
+NOTE: 这不意味着__每一个__值都是能工作的页面，只能说它是一个合法的URL。举例来
+说，如果数据库中没有Michael的记录，那++PersonR "Michael"++就不会解析到有效的页
+面。
+
+让我们看一些真实的例子。如果你将资源模式++/person/#Text++命名为++PersonR++，
+++/year/#Int++命名为++YearR++，++/page/faq++命名为++FaqR++，你会得到这样的路由
+数据类型：
+
+[source, haskell]
+----
+data MyRoute = PersonR Text
+             | YearR Int
+             | FaqR
+----
+
+如果用户请求++/year/2009++，Yesod会将其转换成++YearR 2009++。
+++/person/Michael++会变成++PersonR "Michael"++，++/page/faq++会变成++FaqR++。
+另一方面，++/year/two-thousand-nine++、++/person/michael/snoyman++和
+++/page/FAQ++会导致404错误，这个错误是由类型系统返回的，而不是你的代码。
+
+==== 声明处理函数
+
+声明资源的最后一个问题是资源如何处理。在Yesod中有三种选择：
+
+* 一条路由对应一个处理函数，这个函数响应所有的请求方法。
+
+* 一条路由有多个处理函数，每个处理函数响应一种请求方法。任何其它(未定义处理函
+  数的)请求方法，都会返回405无效方法。
+
+* 将请求传递给子站(subsite)。
+
+前两种方法很好定义。单一处理函数的情况，只要指明资源模式和资源名称，比如
+++/page/faq FaqR++。这种情况下，处理函数的名字是++handleFaqR++。
+
+不同请求方法对应不同处理函数的情况类似，但会附加一列请求方法。请求方法全大写。
+比如，++/person/#String PersonR GET POST DELETE++。这种情况下，你需要定义三个
+处理函数：++getPersonR++，++postPersonR++和++deletePersonR++。
+
+子站是Yesod中很有用，但复杂得多话题。我们会在后面的章节讲到子站，不过使用他们
+并不是太复杂。最常用的子站是静态文件子站，用来托管应用中的静态文件。为了从
+++/static++路径托管静态文件，你需要一行这样的资源定义：
+
+[source, routes]
+----
+/static StaticR Static getStatic
+----
+
+在这行中，++/static++表明静态文件的路径。static这个词在这并没有什么特殊的意思，
+你可以用别的词替代，比如++/my/non-dynamic/files++。
+
+下一个词++StaticR++，给出了资源名称。后面两个词表明我们是在用子站。++Static++
+是子站基础数据类型的名字，++getStatic++是从主站基础类型得到++Static++值的函数
+。
+
+我们目前不要陷入子站的细节中。在“脚手架站点”一章中会详述静态子站。
+
+=== 分发
+
+你只要声明好你的路由，Yesod就会负责所有URL分发的细节。你只要确保提供了适当的处
+理函数。对于子站路由，你不需要写任何处理函数，但对于其它两种路由，你都需要写处
+理函数。我们之前已经提过命名规则(++MyHandlerR GET++变成++getMyHandlerR++，
+++MyOtherHandlerR++变成++handleMyOtherHandlerR++)。
+
+现在我们知道了需要写哪些函数，那让我们弄清楚它们的类型标识是什么。
+
+==== 返回类型
+
+让我们看一个简单的处理函数：
+
+[source, haskell]
+----
+mkYesod "Simple" [parseRoutes|
+/ HomeR GET
+|]
+
+getHomeR :: Handler Html
+getHomeR = defaultLayout [whamlet|<h1>This is simple|]
+----
+
+返回值的类型有两部分：++Handler++和++Html++。我们分别看一下。
+
+===== Handler monad
+
+像++Widget++类型一样，++Handler++类型在Yesod类库中并没定义。类库中定义了这个：
+
+[source, haskell]
+----
+data HandlerT site m a
+----
+
+与++WidgetT++类似，它有三个输入参数：底层monad类型++m++，monad值++a++和基础数
+据类型++site++。每个应用都定义了++Handler++别名，它将该应用的基础数据类型赋给
+++site++，将++m++设置为++IO++。如果你的基础数据类型是++MyApp++，那你会有这样的
+别名定义：
+
+[source, haskell]
+----
+type Handler = HandlerT MyApp IO
+----
+
+我们在写子站时会需要修改底层的monad，不过其它情况下用++IO++就够了。
+
+++HandlerT++这个monad提供了用户请求的信息(如请求参数)，允许修改响应(如响应的
+HTTP headers)等等。你写的大部分Yesod代码都会在这个monad里。
+
+此外，还有一个叫++MonadHandler++的型类。++HandlerT++和++WidgetT++都是这个型类
+的实例，因此很多函数都可以在这两个monad间共用。如果你在API文档里看到
+++MonadHandler++，你应该知道这个函数可以在++Handler++函数里调用。
+
+===== Html
+
+这个类型没有什么特别的。处理函数返回一些HTML内容，以++Html++数据类型表示。但很
+显然如果只允许生成HTML的响应，那Yesod就没什么用处。我们需要能返回CSS、
+Javascript、JSON、图片等等。所以问题是：可以返回哪些数据类型？
+
+为了生成一个回应，我们需要两块信息：内容的类型(比如++text/html++、
+++image/png++)以及怎样将内容序列化(serialize)成字节流。这是用++TypedContent++
+类型表示的：
+
+[source, haskell]
+----
+data TypedContent = TypedContent !ContentType !Content
+----
+
+我们还有一个型类用来表示所有能转换成++TypedContent++的数据类型：
+
+[source, haskell]
+----
+class ToTypedContent a where
+    toTypedContent :: a -> TypedContent
+----
+
+很多常用的数据类型都是这个类的实例，包括++Html++、++Value++(aeson包中用来表示
+JSON值的类型)、++Text++，甚至包括++()++(用来表示空响应)。
+
+==== 参数
+
+让我们回到上文那个简单的例子：
+
+[source, haskell]
+----
+mkYesod "Simple" [parseRoutes|
+/ HomeR GET
+|]
+
+getHomeR :: Handler Html
+getHomeR = defaultLayout [whamlet|<h1>This is simple|]
+----
+
+不是每一条路由都像++HomeR++这么简单。以之前的++PersonR++路由为例。人名需要传递
+给处理函数。这种传递非常直接，但愿也很直观。比如：
+
+[source, haskell]
+----
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes       #-}
+{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE TypeFamilies      #-}
+import           Data.Text (Text)
+import qualified Data.Text as T
+import           Yesod
+
+data App = App
+instance Yesod App
+
+mkYesod "App" [parseRoutes|
+/person/#Text PersonR GET
+/year/#Integer/month/#Text/day/#Int DateR
+/wiki/*Texts WikiR GET
+|]
+
+getPersonR :: Text -> Handler Html
+getPersonR name = defaultLayout [whamlet|<h1>Hello #{name}!|]
+
+handleDateR :: Integer -> Text -> Int -> Handler Text -- text/plain
+handleDateR year month day =
+    return $
+        T.concat [month, " ", T.pack $ show day, ", ", T.pack $ show year]
+
+getWikiR :: [Text] -> Handler Text
+getWikiR = return . T.unwords
+
+main :: IO ()
+main = warp 3000 App
+----
+
+参数的类型与路由声明中段的类型一致，顺序也一致。另外，注意我们既能用++Html++也
+能用++Text++作返回值。
+
+=== 处理函数
+
+因为你写的大部分代码都会在++Handler++这个monad里，花点时间更好的弄懂它非常重要
+。本章剩余部分会简要介绍++Handler++ monad中一些最常用的函数。我特意__没有__涉
+及会话(sesson)相关的函数；它们会在“会话”一章中讲解。
+
+==== 应用程序的信息
+
+有许多函数可以用来返回你应用程序的总体信息，而不针对个别请求。下面就是一些：
+
+getYesod:: 返回你应用的基础类型值。如果你将配置信息存储在基础数据类型中，你可
+能会经常用到这个函数。
+
+getUrlRender:: 返回URL呈现函数，URL呈现函数将类型安全URL转换为++Text++。大部分
+时间，Yesod会自动调用它(Hamlet中就是这样)，但有时候你还是需要直接调用它。
+
+getUrlRenderParams:: ++getUrlRender++的变体，它返回的呈现函数将类型安全URL和一
+列请求参数转换成++Text++。这个函数会在需要时进行百分号编码(percent-encoding)。
+
+==== 请求信息
+
+一个请求中最常用的信息是请求路径、请求参数和++POST++表单数据。其中第一个如上所
+述，是由路由处理的。其它两个最好是用表单模块来处理。
+
+虽然这么说，但有时你还是需要获取裸数据。为此，Yesod提供了++YesodRequest++类型
+以及++getRequest++函数来得到裸数据。它能完全访问GET请求参数、cookies以及偏好语
+言。还有一些辅助函数能让查询更容易，比如++lookupGetParam++、++lookupCookie++和
+++languages++。要访问POST请求的裸数据，你可以用++runRequestBody++。
+
+如果你还需要更多裸数据，比如请求报头，你可以用++waiRequest++从WAI(Web
+Application Interface)获取请求值。更多详情可以查阅“WAI附录“。
+
+==== 短路函数(Short Circuiting)
+
+下面几个函数可以立即结束执行处理函数，将结果返回给用户。
+
+redirect:: 给用户返回重定义(303返回)。如果你想返回其它的状态码(比如permanent
+301 redirect)，可以用++redirectWith++函数。
+[NOTE]
+====
+Yesod给HTTP/1.1用户返回303，给HTTP/1.0用户返回302。你可以查阅HTTP规范了解详情
+。
+====
+
+notFound:: 返回404。如果用户请求的数据在数据库中不存在，就用这个。
+
+permissionDenied:: 返回403，以及特定的错误信息。
+
+invalidArgs:: 返回400，以及无效的参数。
+
+sendFile:: 从文件系统返回指定的文件内容。这是发送静态文件的推荐方法，因为底层
+的WAI处理函数可能会将其优化为系统函数(system call)++sendfile++。因此，使用
+++readFile++发送静态文件是不必要的。
+
+sendResponse:: 返回正常的200状态码。这只是为了从深层嵌套的代码中迅速返回的便捷
+函数。参数可以是任意++ToTypedContent++的实例。
+
+sendWaiResponse:: 当你需要到底层发送裸WAI返回时使用。这对于创建流响应
+(streaming response)或服务器发送事件(server-sent event)等特别有用。
+
+==== HTTP响应的报头
+
+setCookie:: 在客户端设置一个cookie。这个函数将cookie的时效设为几分钟，而不是设
+定一个过期日期。记住，直到下一次请求你才能用++lookupCookie++查看该cookie的值。
+
+deleteCookie:: 让客户端删除一个cookie。同样，直到下一次请求，++lookupCookie++才
+不会有该cookie值。
+
+setHeader:: 设置任意的HTTP头。
+
+setLanguage:: 设置用户偏好语言，会成为++languages++函数的返回值。
+
+cacheSeconds:: 设置Cache-Control头来表示该响应被缓存多少秒。如果你在
+link:http://www.varnish-cache.org[服务器上使用varnish].
+这会非常有用。
+
+neverExpires:: 将Expires头设置为2037年。你可以对永不过期的内容设置这个头，比如
+针对以内容哈希值为文件名的请求。
+
+alreadyExpired:: 将Expires头设置为过去的时间。
+
+expiresAt:: 将Expires头设置为指定的日期/时间。
+
+=== 小结
+
+路由和分发可以说是Yesod的核心：我们的类型安全URL就是在这里定义的，我们写的大部
+分代码会在++Handler++ monad里。本章涉及了Yesod一些最重要和最核心的概念，你把这
+些好好消化非常重要。
+
+本章也提到了一些更复杂的Yesod话题，我们会在后续章节讲解。但只使用你目前学到的
+知识，应该已经能够写出相当复杂的web应用了。
