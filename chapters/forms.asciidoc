@@ -1,0 +1,825 @@
+== 表单
+
+我在前面已经提到过边界问题：每当有数据进入或离开应用，都需要进行校验。可能最困
+难的地方就是表单。用代码来做表单是很复杂的；在理想的世界里，我们希望一个方案能
+够解决以下问题：
+
+* 保证数据是有效的。
+
+* 将表单中的字符串数据编组(marshal)为Haskell数据类型。
+
+* 生成用来显示表单的HTML代码。
+
+* 生成用户端数据验证的Javascript代码，并提供更友好的控件，比如日期选择控件。
+
+* 把简单的表单组合成更复杂的表单。
+
+* 自动给表单中的域(field)分配名字，并保证名字唯一。
+
+yesod-form包以简单、声明式的API提供了所有这些功能。它构建于Yesod的控件之上以简
+化了定义表单样式的过程，并在适当时候应用Javascript。与Yesod其它部分一样，它使
+用Haskell的类型系统来保证表单各部分正确运行。
+
+=== 概要
+
+[source, haskell]
+----
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE QuasiQuotes           #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeFamilies          #-}
+import           Control.Applicative ((<$>), (<*>))
+import           Data.Text           (Text)
+import           Data.Time           (Day)
+import           Yesod
+import           Yesod.Form.Jquery
+
+data App = App
+
+mkYesod "App" [parseRoutes|
+/ HomeR GET
+/person PersonR POST
+|]
+
+instance Yesod App
+
+-- 告诉我们的应用使用标准的英语消息。
+-- 如果你需要i18n支持，可以提供一个翻译函数。
+instance RenderMessage App FormMessage where
+    renderMessage _ _ = defaultFormMessage
+
+-- 指定jQuery库的路径。这里我们用的默认值，它指向Google CDN。
+instance YesodJquery App
+
+-- 我们希望通过表单接收的数据类型
+data Person = Person
+    { personName          :: Text
+    , personBirthday      :: Day
+    , personFavoriteColor :: Maybe Text
+    , personEmail         :: Text
+    , personWebsite       :: Maybe Text
+    }
+  deriving Show
+
+-- 声明表单。它的类型标识有点吓人，下面是一个概况：
+--
+-- * Html参数用来编码额外的信息。
+-- 下面讲到runFormGet和runFormPost时会有详细解释。
+--
+-- * 我们的Handler是底层monad，说明表单是在哪个站点中运行。
+--
+-- * FormResult可以有三种情况：FormMissing(没有提交数据)，
+-- FormFailure(无效数据)和FormSuccess。
+--
+-- * Widget是放置到网页上的可视控件。
+--
+-- 注意，脚手架站点提供了一个方便的类型别名Form，这样我们的类型标识可以写成：
+--
+-- > personForm :: Form Person
+--
+-- 作为我们学习的目的，看看完整的版本也是好的。
+personForm :: Html -> MForm Handler (FormResult Person, Widget)
+personForm = renderDivs $ Person
+    <$> areq textField "Name" Nothing
+    <*> areq (jqueryDayField def
+        { jdsChangeYear = True -- give a year dropdown
+        , jdsYearRange = "1900:-5" -- 1900 till five years ago
+        }) "Birthday" Nothing
+    <*> aopt textField "Favorite color" Nothing
+    <*> areq emailField "Email address" Nothing
+    <*> aopt urlField "Website" Nothing
+
+-- GET方法对应的处理函数用来显示表单
+getHomeR :: Handler Html
+getHomeR = do
+    -- Generate the form to be displayed
+    (widget, enctype) <- generateFormPost personForm
+    defaultLayout
+        [whamlet|
+            <p>
+                The widget generated contains only the contents
+                of the form, not the form tag itself. So...
+            <form method=post action=@{PersonR} enctype=#{enctype}>
+                ^{widget}
+                <p>It also doesn't include the submit button.
+                <button>Submit
+        |]
+
+-- POST方法对应的处理函数对提交的表单进行处理。如果成功，则显示解析出的数据。
+-- 否则，重新显示表单并附带错误消息。
+postPersonR :: Handler Html
+postPersonR = do
+    ((result, widget), enctype) <- runFormPost personForm
+    case result of
+        FormSuccess person -> defaultLayout [whamlet|<p>#{show person}|]
+        _ -> defaultLayout
+            [whamlet|
+                <p>Invalid input, let's try again.
+                <form method=post action=@{PersonR} enctype=#{enctype}>
+                    ^{widget}
+                    <button>Submit
+            |]
+
+main :: IO ()
+main = warp 3000 App
+----
+
+=== 表单的种类
+
+在讲解类型前，我们应该先大致看一下有几种表单。共有三类：
+
+Applicative:: 这是最常用的表单(概要里的就是)。Applicative风格允许我们汇聚错误
+消息，并保持一种非常高层次、声明式的方法。(更多关于applicative代码的信息，参阅
+link:http://www.haskell.org/haskellwiki/Applicative_functor[Haskell维基]。)
+
+Monadic:: 是一种比applicative更强大的表单。虽然它能让你的表单更灵活，但同时会
+让代码更冗长。如果你创建的表单不是标准的两列风格，就需要用到monadic表单。
+
+Input:: 仅仅用来接收输入。不生成任何HTML来接收用户输入。在与已有表单交互时有用
+。
+
+此外，还有一些变量在你构建表单和域时需要设置：
+
+* 这个域是必需的还是可选的？
+* 这个表单要用GET还是POST方法提交？
+* 表单(域)有默认值吗？
+
+一个总的目标是尽量减少域定义的数量，而是让它们能在尽量多的场景中使用。这样做的
+结果是每个域都要定义一些额外属性。在概要中，你可能注意到++areq++及其
+++Nothing++参数。我们在本章中当然会讲到为什么需要这些参数，不过暂时你只要知道
+通过显式的定义这些参数，就能在更多地方复用它们(比如++intField++)。
+
+关于命名规则再说一句。每种表单都有一个字母前缀(A、M和I)，比如++MForm++。我们用
+req和opt来表示必须(required)和可选(optional)。综合这些，我们用++areq++来创建
+applicative表单中必须有值的域，用++iopt++表示input表单中可选的域。
+
+=== 类型
+
+Yesod.Form.Types模块声明了不少类型。我们在这里不会涉及到全部类型，而是专注于最
+重要的一些。让我们从一些简单类型开始：
+
+Enctype:: 编码类型，构造函数是++UrlEncoded++或++Multipart++。这个数据类型是
+++ToHtml++的实例，因此你可以直接在Hamlet中使用它。
+
+FormResult:: 有三种情况：++FormMissing++如果没有提交数据，++FormFailure++如果
+解析表单时出错(比如必须有值的域没有值、无效内容)，++FormSuccess++如果一切正常
+。
+
+FormMessage:: 将所有能够生成的(错误)消息表示成一个数据类型。比如，
+++MsgInvalidInteger++用来表示所提供的文本值不是整数。通过让这个数据高度结构化
+，你可以提供任何你想要的呈现函数，就可以让你的应用支持多国语言(i18n)。
+
+接下来我们有一些数据类型是用来定义单个域的。我们将域定义成一小块信息，比如一个
+数字、字符串或一个邮箱地址。域组合在一起就构成了表单。
+
+Field:: 定义了两个功能：怎么将用户输入解析成Haskell值，以及怎么创建显示给用户
+的控件。++yesod-form++包的Yesod.Form.Fields模块中定义了很多种域。
+
+FieldSettings:: (定义)一个域的基本信息，比如显示的名字、可选的小提示(tooltip)
+，可能硬编码(hardcoded)的++id++和++name++属性。(如果没有提供++id++和++name++，
+Yesod会自动生成。)注意，++FieldSettings++是++IsString++的实例，因此当你需要提
+供一个++FieldSettings++值时，你实际上可以用字符串字面量。这也是概要中的例子采
+用的方法。
+
+最后，我们讲讲最重要的部分：表单本身。共有三种表单：++MForm++用于monadic表单，
+++AForm++用于applicative表单，++FormInput++用于输入表单。++MForm++实际上是一个
+monad stack的别名，它提供了以下特性：
+
+* 一个++Reader++ monad读取用户提交的参数、基础数据类型及用户支持的语种。后两项
+  被用于呈现++FormMessage++以支持i18n(后面会详述)。
+
+* 一个++Writer++ monad用于记录++Enctype++。表单数据总是会被++UrlEncoded++，除
+  非是文件输入域，它会强制使用multipart编码。
+
+* 一个++State++ monad用于记录给表单域生成的名字及标识符。
+
+++AForm++也大致类似。然而，有一些主要的差异：
+
+* 它生成一列++FieldView++，用来记录要显示给用户的内容。这允许我们对表单显示的
+  内容有一个抽象的掌握，到最后再选一个适当的函数把它们布局到页面上。在概要中，
+  我们使用++renderDivs++，它会创建一组div标签。另外两种选择是
+  ++renderBootstrap++和++renderTable++。
+
+* 它不是++Monad++的实例。++Applicative++的目标是使整个表单能够运行，并从每个域
+  得到尽可能多的信息，然后再创建运行结果。这在++Monad++中无法工作。
+
+++FormInput++更简单：它或者返回一列错误消息，或都返回一个结果。
+
+=== 转换
+
+``但是等一下，''你说。``你刚才说概要中使用的是applicative表单，但我敢肯定类型
+标识写的是++MForm++。难道它不是Monadic表单吗？'' 确实是，我们最后生成的表单是
+monadic表单。但实际发生的是我们将applicative表单转换成了monadic表单。
+
+再次说明，我们的目标是尽可能的复用代码，最小化API中函数的数量。Monadic表单比
+Applicative表单更强大，也更冗长，因此任何能用Applicative表单表示的内容应该也能
+用Monadic表单表示。有两个核心的函数帮助我们进行转换：++aformToForm++将任意
+applicative表单转为monadic表单，++formToAForm++将有些monadic表单转为
+applicative表单。
+
+``但是**再**等一下，''你坚持道。``我没有看到任何++aformToForm++！''是的。
+++rednerDivs++函数会负责去调用++aformToForm++。
+
+=== 创建++AForm++
+
+现在我(希望)已经让你信服概要里我们确实用的是applicative表单，让我们看看并尝试
+去理解表单是怎么创建的。看一个简单的例子：
+
+[source, haskell]
+----
+data Car = Car
+    { carModel :: Text
+    , carYear  :: Int
+    }
+  deriving Show
+
+carAForm :: AForm Handler Car
+carAForm = Car
+    <$> areq textField "Model" Nothing
+    <*> areq intField "Year" Nothing
+
+carForm :: Html -> MForm Handler (FormResult Car, Widget)
+carForm = renderTable carAForm
+----
+
+这里，我们显式的区分了applicative和monadic表单。在++carAForm++的定义中，我们使
+用了++<$>++和++<*>++运算符。这应该不奇怪；它们几乎总是会在applicative风格的代
+码中用到。另外，++Car++数据类型的每一个字段对应一行。同样不奇怪的是，我们用
+++textField++来接收++Text++值，用++intField++来接收++Int++值。
+
+让我们仔细看看++areq++函数。它的(简化了)的类型标识是++Field a -> FieldSettings
+-> Maybe a -> AForm a++。第一个参数指明了这个域的数据类型，怎么解析它以及怎么
+呈现它。第二个参数++FieldSettings++，告诉我们这个域的标签(label)、提示、名字和
+ID。因为前面提到++FieldSettings++是++IsString++的实例，因此在这里用的是字符串
+字面量。
+
+第三个参数++Maybe a++是怎么回事？它提供了可选的默认值。比如，如果我们想让表单
+填入“2007”作为默认的汽车生产年份，我们就可以用++areq intField "Year" (Just
+2007)++。我们甚至可以更进一步，用一个可选的参数来给整个表单提供默认值。
+
+[source, haskell]
+----
+carAForm :: Maybe Car -> AForm Handler Car
+carAForm mcar = Car
+    <$> areq textField "Model" (carModel <$> mcar)
+    <*> areq intField  "Year"  (carYear  <$> mcar)
+----
+
+==== 可选域
+
+假设我们想创建一个可选域(比如汽车颜色)。我们只要用++aopt++函数就可以。
+
+[source, haskell]
+----
+carAForm :: AForm Handler Car
+carAForm = Car
+    <$> areq textField "Model" Nothing
+    <*> areq intField "Year" Nothing
+    <*> aopt textField "Color" Nothing
+----
+
+与必须域类似，最后一个参数是可选的默认值。然而，这样就有两层Maybe封装了。这实
+际上有点冗余，但对于用一个可选参数为表单提供默认值，代码写起来会更容易，比如下
+面这个例子。
+
+[source, haskell]
+----
+carAForm :: Maybe Car -> AForm Handler Car
+carAForm mcar = Car
+    <$> areq textField "Model" (carModel <$> mcar)
+    <*> areq intField  "Year"  (carYear  <$> mcar)
+    <*> aopt textField "Color" (carColor <$> mcar)
+
+carForm :: Html -> MForm Handler (FormResult Car, Widget)
+carForm = renderTable $ carAForm $ Just $ Car "Forte" 2010 $ Just "gray"
+----
+
+=== 验证
+
+我们怎么让表单只接受年份在1990以后的汽车呢？如果你记得，我们在上面说过
+++Field++本身包含了什么是有效输入的信息。所以我们只要新写一个++Field++就可以，
+对吗？嗯，其实有一点繁琐。倒不如，我们来改一个现有的例子：
+
+[source, haskell]
+----
+carAForm :: Maybe Car -> AForm Handler Car
+carAForm mcar = Car
+    <$> areq textField    "Model" (carModel <$> mcar)
+    <*> areq carYearField "Year"  (carYear  <$> mcar)
+    <*> aopt textField    "Color" (carColor <$> mcar)
+  where
+    errorMessage :: Text
+    errorMessage = "Your car is too old, get a new one!"
+
+    carYearField = check validateYear intField
+
+    validateYear y
+        | y < 1990 = Left errorMessage
+        | otherwise = Right y
+----
+
+这里的技巧是++check++函数。它接受一个函数(++validateYear++)传入，这个函数或者
+返回一个错误消息或者返回修改后的域值。在这个例子中，我们没有修改域值。通常也不
+会去修改。这样的检查很常见，所以我们有个快捷函数：
+
+
+[source, haskell]
+----
+carYearField = checkBool (>= 1990) errorMessage intField
+----
+
+++checkBool++接受两个参数：一个必须满足的条件，以及条件不满足时显示的错误消息。
+
+NOTE: 你可能注意到++errorMessage++用了显式的类型标识。在使用了
+++OverloadedStrings++的情况下，需要这样做。为了支持i18n，消息可以是多种不同的
+数据类型，GHC没有办法确定你要使用的究竟是++IsString++的哪个实例。
+
+能够保证汽车年份不太老很好。但如果我们还想保证不是未来的年份呢？为了查询当前年
+份，我们需要执行++IO++操作。这种情况下，我们需要用++checkM++，它允许在校验代码
+中执行任意的操作：
+
+[source, haskell]
+----
+    carYearField = checkM inPast $ checkBool (>= 1990) errorMessage intField
+
+    inPast y = do
+        thisYear <- liftIO getCurrentYear
+        return $ if y <= thisYear
+            then Right y
+            else Left ("You have a time machine!" :: Text)
+
+getCurrentYear :: IO Int
+getCurrentYear = do
+    now <- getCurrentTime
+    let today = utctDay now
+    let (year, _, _) = toGregorian today
+    return $ fromInteger year
+----
+
+++inPast++函数返回一个在++Handler++ monad中的++Either++值。我们用++liftIO
+getCurrentTime++来获取当前年份，然后与用户提供的年份进行比较。另外，注意我们怎
+么把多个检验函数串联起来。
+
+NOTE: 因为++checkM++验证函数运行在++Handler++ monad中，所以它可以访问你在Yesod
+里通常能访问的大量内容。对于需要执行数据库操作的情况会特别有用，我们会在“
+Persistent”一章中讲解。
+
+=== 更复杂的域
+
+我们的颜色输入框不错，但一点都不用户友好。我们真正想要的是一个下拉框。
+
+[source, haskell]
+----
+data Car = Car
+    { carModel :: Text
+    , carYear :: Int
+    , carColor :: Maybe Color
+    }
+  deriving Show
+
+data Color = Red | Blue | Gray | Black
+    deriving (Show, Eq, Enum, Bounded)
+
+carAForm :: Maybe Car -> AForm Handler Car
+carAForm mcar = Car
+    <$> areq textField "Model" (carModel <$> mcar)
+    <*> areq carYearField "Year" (carYear <$> mcar)
+    <*> aopt (selectFieldList colors) "Color" (carColor <$> mcar)
+  where
+    colors :: [(Text, Color)]
+    colors = [("Red", Red), ("Blue", Blue), ("Gray", Gray), ("Black", Black)]
+----
+
+++selectFieldList++接收一个二元组(pair)列表。二元组的第一项是显示在下拉框中的
+文本，第二项是实际的Haskell值。当然，上面的代码看下来有点重复；我们可以借助GHC
+为我们自动生成Color的Enum和Bounded实例，而得到同样的结果。
+
+[source, haskell]
+----
+colors = map (pack . show &&& id) [minBound..maxBound]
+----
+
+++[minBound..maxBound]++给我们所有++Color++值的列表。然后我们用++map++和
+++&&&++(即fan-out运算符)将它转为一列对。
+
+有些人更喜欢单选按钮而不是下拉列表。幸运的是，只要修改一个词就可以。
+
+[source, haskell]
+----
+carAForm = Car
+    <$> areq textField               "Model" Nothing
+    <*> areq intField                "Year"  Nothing
+    <*> aopt (radioFieldList colors) "Color" Nothing
+----
+
+=== 运行表单
+
+或早或晚，我们会需要用我们漂亮的表单生成表单结果。有很多函数可以做到，每一个函
+数都有其自身的目的。我会逐一介绍它们，从最常用的开始。
+
+runFormPost:: 生成一个表单用于处理++POST++提交的参数。如果不是用++POST++方法提
+交的，它会返回++FormMissing++。它还会自动插入一个安全令牌作为隐藏的表单域，以
+防止link:http://en.wikipedia.org/wiki/Cross-site_request_forgery[跨站请求伪造
+(CSRF: cross-site request forgery)]攻击。
+
+runFormGet:: ++runFormPost++函数针对++GET++请求的版本。为了区分正常的++GET++页
+面加载与++GET++提交，它在表单中包含了++_hasdata++这个隐藏域。不同于runFormPost
+，它没有CSRF防御。
+
+runFormPostNoToken:: 与++runFormPost++一样，但不包括(或不需要)CSRF安全令牌。
+
+generateFormPost:: 不与已有++POST++参数绑定，假装它们不存在。如果你希望表单提
+交完后生成一个全新的表单，比如向导(wizard)里那样，这个函数会很有用。
+
+generateFormGet:: 与++generateFormPost++一样，但是针对++GET++请求。
+
+前三个函数的返回值类型是++((FormResult a, Widget), Enctype)++。++Widget++包含
+了验证错误和之前提交的内容。
+
+=== i18n
+
+本章多次提到i18n。这个话题会在它自己的章节有更详细的说明，但因为它对
+++yesod-form++有很大的影响，我想先给个简要介绍。Yesod中i18n的基本思想是用数据
+类型表示消息。每个站点都可以指定一种数据类型为++RenderMessage++的实例，它会基
+于用户接受的语种，呈现相应语种的消息。结果是，你需要注意一些事情：
+
+* 每个Yesod站点自动将++Text++声明为++RenderMessage++的实例，因此你可以用普通的
+  字符串而不用担心i18n支持。然而，有时你可能还是需要使用显式的类型标识。
+
+* ++yesod-form++将所有的消息表示为++FormMessage++数据类型。因此，要使用
+  ++yesod-form++，你需要有适当的++RenderMessage++实例。一个简单的默认为英语的例
+  子是：
+[source, haskell]
+----
+instance RenderMessage App FormMessage where
+    renderMessage _ _ = defaultFormMessage
+----
+
+这是脚手架站点中默认提供的。
+
+=== Monadic表单
+
+很多时候，一个简单的表单布局就足够了，而applicative表单就擅长于此。然而有些时
+候，你会想要更加修改化的表单外观。
+
+[[monadic-x-4]]
+
+.一种非标准的表单布局
+image::../images/monadic-form.png[]
+
+对于这种应用场景，很适合用monadic表单。虽然它们比applicative表单更冗长，但正是
+这样才让你能够完全的控制表单如何呈现。为了生成上图中的表单，我们需要写这样的代
+码。
+
+
+[source, haskell]
+----
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE QuasiQuotes           #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeFamilies          #-}
+import           Control.Applicative
+import           Data.Text           (Text)
+import           Yesod
+
+data App = App
+
+mkYesod "App" [parseRoutes|
+/ HomeR GET
+|]
+
+instance Yesod App
+
+instance RenderMessage App FormMessage where
+    renderMessage _ _ = defaultFormMessage
+
+data Person = Person
+    { personName :: Text
+    , personAge  :: Int
+    }
+    deriving Show
+
+personForm :: Html -> MForm Handler (FormResult Person, Widget)
+personForm extra = do
+    (nameRes, nameView) <- mreq textField "this is not used" Nothing
+    (ageRes, ageView) <- mreq intField "neither is this" Nothing
+    let personRes = Person <$> nameRes <*> ageRes
+    let widget = do
+            toWidget
+                [lucius|
+                    ##{fvId ageView} {
+                        width: 3em;
+                    }
+                |]
+            [whamlet|
+                #{extra}
+                <p>
+                    Hello, my name is #
+                    ^{fvInput nameView}
+                    \ and I am #
+                    ^{fvInput ageView}
+                    \ years old. #
+                    <input type=submit value="Introduce myself">
+            |]
+    return (personRes, widget)
+
+getHomeR :: Handler Html
+getHomeR = do
+    ((res, widget), enctype) <- runFormGet personForm
+    defaultLayout
+        [whamlet|
+            <p>Result: #{show res}
+            <form enctype=#{enctype}>
+                ^{widget}
+        |]
+
+main :: IO ()
+main = warp 3000 App
+----
+
+与applicative表单中的++areq++类似，我们在monadic表单中使用++mreq++。(是的，对
+于可选域用++mopt++函数。)但有一个显著的区别：++mreq++的返回值是一个二元组。不
+是(像applicative表单那样)隐去FieldView值并自动插入控件，在monadic表单中，我们
+可以随心所愿的插入表单域。
+
+++FieldView++包含很多信息。最重要的是++fvInput++，它是实际上的表单域。在这个例
+子中，我们还使用了++fvId++，它返回输入标签的HTML ++id++属性。在上例中，我们用
+它来指定域的宽度。
+
+你可能在想``this is not used''和``neither is this''这两个值是怎么回事。
+++mreq++接受一个++FieldSettings++作为第二个参数。因为++FieldSettings++是
+++IsString++的实例，它会被编译器扩展成：
+
+[source, haskell]
+----
+fromString "this is not used" == FieldSettings
+    { fsLabel = "this is not used"
+    , fsTooltip = Nothing
+    , fsId = Nothing
+    , fsName = Nothing
+    , fsAttrs = []
+    }
+----
+
+在applicative表单中，++fsLabel++和++fsTooltip++值在生成HTML时会用上。在monadic
+表单中，Yesod不会为你生成任何HTML``封装代码(wrapper)''，因此这些值被忽略。然而
+，我们还是将其保留为++FieldSettings++的参数，允许你在需要时覆盖域的++id++和
+++name++属性。
+
+另一个有趣的地方是++extra++值。++GET++表单会加入一个额外的域来表示表单提交，而
+++POST++表单会加入一个安全令牌防止CSRF攻击。如果你在表单中没有加入这个额外的隐
+藏域，提交表单时会失败。
+
+除此以外，事情就比较直接。我们通过组合++nameRes++和++ageRes++值来创建
+++personRes++值，然后返回一个元组，包含人的信息和控件。在++getHomeR++函数中，一切和
+applicative表单看起来一样。实际上，在这个例子中你把monadic表单替换成
+applicative表单，它还是能工作。
+
+=== 输入表单(Input forms)
+
+Applicative和monadic表单既帮你生成HTML代码，也帮你解析用户输入。有时候，你只需
+要解析输入，比如当你的HTML中已经有表单，或你想用Javascript动态生成表单。这种情
+况下，你会需要用到输入表单。
+
+输入表单总体上与applicative表单和monadic表单一致，区别在于：
+
+* 你使用++runInputPost++和++runInputGet++函数(运行表单)。
+
+* 你使用++ireq++和++iopt++函数(定义表单域)。这两个函数都都有两个参数：域的类型
+  和名字(即HTML中的++name++属性)。
+
+* 在运行一个表单后，它(只)返回值。它既不返回控件，也不返回编码类型。
+
+* 如果验证出错，会返回“无效参数”的错误页面。
+
+你可以用输入表单来重写上面的例子。但是注意，输入表单更不用户友好。如果你在
+applicative或monadic表单中出错，你会返回表单页面，你之前输入的值还在，并有一条
+错误消息告诉你哪些需要修正。在输入表单中，用户只会得到错误消息。
+
+[source, haskell]
+----
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE QuasiQuotes           #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeFamilies          #-}
+import           Control.Applicative
+import           Data.Text           (Text)
+import           Yesod
+
+data App = App
+
+mkYesod "App" [parseRoutes|
+/ HomeR GET
+/input InputR GET
+|]
+
+instance Yesod App
+
+instance RenderMessage App FormMessage where
+    renderMessage _ _ = defaultFormMessage
+
+data Person = Person
+    { personName :: Text
+    , personAge  :: Int
+    }
+    deriving Show
+
+getHomeR :: Handler Html
+getHomeR = defaultLayout
+    [whamlet|
+        <form action=@{InputR}>
+            <p>
+                My name is
+                <input type=text name=name>
+                and I am
+                <input type=text name=age>
+                years old.
+                <input type=submit value="Introduce myself">
+    |]
+
+getInputR :: Handler Html
+getInputR = do
+    person <- runInputGet $ Person
+                <$> ireq textField "name"
+                <*> ireq intField "age"
+    defaultLayout [whamlet|<p>#{show person}|]
+
+main :: IO ()
+main = warp 3000 App
+----
+
+=== 自定义域
+
+Yesod自带的域可以满足大部分表单的需求。但有时候，你还是需要更专门的域。幸运的
+是，你可以在Yesod中自己创建新的域。++Field++构造函数有三个参数：++fieldParse++
+接受用户提交值的列表，并返回下面三种结果之一：
+
+* 提示验证失败的错误消息。
+
+* 解析出的值。
+
+* Nothing，说明没有提交数据。
+
+最后一种情况听上去有些奇怪。看上去Yesod能自动知道当输入列表为空时有没有数据。
+但实际上，对于有些域，没有输入实际上是合法输入。比如说复选框(checkbox)，通过发
+送一个空列表来表示没被选中。
+
+另外，输入列表是怎样的？它应该是++Maybe++类型的吗？也不是这样。比如组合复选框
+和多选列表，你会有多个同名控件。在下面的例子中我们也用了这个技巧。
+
+第二个输入参数是++fieldView++，它负责将控件显示给用户。这个函数有如下参数：
+
+. ++id++属性。
+. ++name++属性。
+. 其它任意属性。
+
+. 返回值是++Either++类型的。它或者是(解析失败时)未解析的输入，或者是成功解析的
+值。++intField++可以很好的说明这一点。如果你输入**`42`**，返回值会是++Right
+42++。但如果你输入**`turtle`**，返回值会是++Left "turtle"++。这允许你给输入标
+签(input tag)设置value属性，给用户一致的体验。
+
+. ++Bool++值说明域是否为必须的。
+
+构造函数的最后一个输入参数是++fieldEnctype++。如果你要处理上传文件，这应该是
+++Multipart++；其它情况下，它应该是++UrlEncoded++。
+
+作为一个小例子，让我们创建一个新的域用来确认密码。这个域有两个相同名字
+的输入框，当它们值不同时返回错误消息。注意，与大部分域不同，它__不__提供input标
+签的value属性，因为你**绝**不会想把用户输入的密码作为HTML返回。
+
+
+[source, haskell]
+----
+passwordConfirmField :: Field Handler Text
+passwordConfirmField = Field
+    { fieldParse = \rawVals _fileVals ->
+        case rawVals of
+            [a, b]
+                | a == b -> return $ Right $ Just a
+                | otherwise -> return $ Left "Passwords don't match"
+            [] -> return $ Right Nothing
+            _ -> return $ Left "You must enter two values"
+    , fieldView = \idAttr nameAttr otherAttrs eResult isReq ->
+        [whamlet|
+            <input id=#{idAttr} name=#{nameAttr} *{otherAttrs} type=password>
+            <div>Confirm:
+            <input id=#{idAttr}-confirm name=#{nameAttr} *{otherAttrs} type=password>
+        |]
+    , fieldEnctype = UrlEncoded
+    }
+
+getHomeR :: Handler Html
+getHomeR = do
+    ((res, widget), enctype) <- runFormGet $ renderDivs
+        $ areq passwordConfirmField "Password" Nothing
+    defaultLayout
+        [whamlet|
+            <p>Result: #{show res}
+            <form enctype=#{enctype}>
+                ^{widget}
+                <input type=submit value="Change password">
+        |]
+----
+
+=== 不是来自用户的值
+
+假设你在写一个博客托管应用，你需要有一个表单让用户输入博客文章。一篇博客会包含
+四块信息：
+
+* 标题
+* HTML内容
+* 用户ID或作者名
+* 发表日期
+
+我们需要用户输入前两项，而不是后两项。用户ID会在用户登录时自动得到(我们还没讲
+到登录的话题)，发表日期应该是当前时刻。问题是，我们怎么保持简单的applicative表
+单语法，同时引入不是来自用户的值？
+
+答案是有两个辅助函数：
+
+* ++pure++允许我们将一个普通的值封装成applicative表单值。
+* ++lift++允许我们在applicative表单中执行任意的++Handler++操作。
+
+让我们看一个用到这两个函数的例子：
+
+[source, haskell]
+----
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE QuasiQuotes           #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeFamilies          #-}
+module Case where
+
+import           Control.Applicative
+import           Data.Text           (Text)
+import           Data.Time
+import           Yesod
+
+-- 在“验证与授权”一章中，我们会详细讲解
+newtype UserId = UserId Int
+    deriving Show
+
+data App = App
+
+mkYesod "App" [parseRoutes|
+/ HomeR GET POST
+|]
+
+instance Yesod App
+
+instance RenderMessage App FormMessage where
+    renderMessage _ _ = defaultFormMessage
+
+type Form a = Html -> MForm Handler (FormResult a, Widget)
+
+data Blog = Blog
+    { blogTitle    :: Text
+    , blogContents :: Textarea
+    , blogUser     :: UserId
+    , blogPosted   :: UTCTime
+    }
+    deriving Show
+
+form :: UserId -> Form Blog
+form userId = renderDivs $ Blog
+    <$> areq textField "Title" Nothing
+    <*> areq textareaField "Contents" Nothing
+    <*> pure userId
+    <*> lift (liftIO getCurrentTime)
+
+getHomeR :: Handler Html
+getHomeR = do
+    let userId = UserId 5 -- 再一次，参阅“验证与授权”章
+    ((res, widget), enctype) <- runFormPost $ form userId
+    defaultLayout
+        [whamlet|
+            <p>Previous result: #{show res}
+            <form method=post action=@{HomeR} enctype=#{enctype}>
+                ^{widget}
+                <input type=submit>
+        |]
+
+postHomeR :: Handler Html
+postHomeR = getHomeR
+
+main :: IO ()
+main = warp 3000 App
+----
+
+=== 小结
+
+Yesod中的表单分为三种。Applicative表单是最常用的，因为它提供了良好的用户界面和
+简单的API。Monaidc表单更为强大，但也更难使用。输入表单在你只需读取用户输入，而
+不生成input控件时使用。
+
+Yesod自带了很多种++Field++。为了在表单中使用它们，你需要指明表单的种类以及该域
+是必须还是可选的。所以有六个辅助函数：++areq++、++aopt++、++mreq++、++mopt++、
+++ireq++和++iopt++。
+
+表单拥有强大的功能。它们可以自动插入Javascript，以帮助你使用更漂亮的UI控件，比
+如jQuery UI日期选择器。表单也完全支持i18n，因此你可以支持全球用户。当你有更特
+殊的需求时，你可以将一些验证函数写到已有的域里，或从头写一个新的域。

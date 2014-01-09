@@ -25,6 +25,8 @@
 
 [第七章 路由和处理函数](https://github.com/rnons/yesodbook-zh/blob/master/chapters/routing-and-handlers.asciidoc)
 
+[第八章 表单](https://github.com/rnons/yesodbook-zh/blob/master/chapters/forms.asciidoc)
+
 [Yesod]: http://www.yesodweb.com/
 [Haskell]: http://www.haskell.org/
 [Yesodbook源文件]: https://github.com/yesodweb/yesodweb.com-content/tree/master/book
