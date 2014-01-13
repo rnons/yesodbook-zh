@@ -27,6 +27,8 @@
 
 [第八章 表单](https://github.com/rnons/yesodbook-zh/blob/master/chapters/forms.asciidoc)
 
+[第九章 会话](https://github.com/rnons/yesodbook-zh/blob/master/chapters/sessions.asciidoc)
+
 [Yesod]: http://www.yesodweb.com/
 [Haskell]: http://www.haskell.org/
 [Yesodbook源文件]: https://github.com/yesodweb/yesodweb.com-content/tree/master/book

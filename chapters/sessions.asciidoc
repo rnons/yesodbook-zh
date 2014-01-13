@@ -1,0 +1,310 @@
+== 会话
+
+HTTP是一个无状态的协议。虽然有些人把无状态性视为HTTP的缺点，RESTful的支持者却
+夸赞其为优点。当把状态移除以后，我们自动得到了一些好处，比如更容易扩展和缓存。
+你可以大体上用HTTP的无状态性与Haskell的不可变(non-mutable)特性做类比。
+
+RESTful应用应当尽可能避免储存与客户端的交互状态。尽管如此，有时这样做是不可避
+免的。像购物车这样的功能就是经典案例，其它常见的交互如处理用户登录，可以通过正
+确使用会话得到极大增强。
+
+本章讲解Yesod如何存储会话数据，你可以如何访问这些数据，以及一些专用函数帮你最
+有效的使用会话。
+
+=== 客户会话 (ClientSession)
+
+最早从Yesod分离出去的包之一就是clientsession包。这个包使用加密和签名将数据存储
+在客户端的cookie中。加密能阻止用户查看数据，而签名能保证会话不被截持或篡改。
+
+从效率的角度讲，把数据存在cookie中似乎不是个好主意。毕竟，这样的话数据在每次请
+求时都要被发送。但在实际应用中，clientsession的性能表现非常好。
+
+* 响应一个请求不需要在服务器端执行任何数据库查询操作。
+* 水平扩展很容易：每个请求都包含了做出响应所需要的全部信息。
+* 为避免不必要的带宽开支，生产环境的站点可以从单独的域名托管静态文件，从而做到
+  不是每个请求都传送会话cookie。
+
+在会话中存储几兆的数据不是好主意。大部分会话实现也不推荐那样。如果你真的需要给
+一个用户存储那么多信息，最好还是在会话中保存一个查询关键字，而实际的数据放在数
+据库中。
+
+与clientsession的交互全部由Yesod在内部完成，但有些地方你可以做适当的微调
+(tweak)。
+
+=== 控制会话
+
+默认情况下，你的Yesod应用使用clientsession来保存会话，从用户的
+++client-session-key.aes++获取加密密钥，并给会话设定两小时的超时时间。(注意：
+超时时间是从用户上一次发送请求计算的，**不是**从会话创建时间计算的。)尽管如此
+，这些都可以通过重定义Yesod类中的++makeSessionBackend++方法来修改。
+
+一个简单的修改方法是关闭会话处理；只要让它返回++Nothing++即可。如果你的应用绝
+对没有会话需求，关闭会话可以略微改进性能。但关闭会话还是要当心：因为它会同时关
+闭如跨站请求伪造(CSRF: Cross-Site Request Forgery)防御这样的功能。
+
+[source, haskell]
+----
+instance Yesod App where
+    makeSessionBackend _ = return Nothing
+----
+
+另一种常用做法是修改(密钥)文件路径或超时时间，但继续使用client-session。要做到
+这一点，使用++defaultClientSessionBackend++这个辅助函数：
+
+[source, haskell]
+----
+instance Yesod App where
+    makeSessionBackend _ = do
+        let minutes = 24 * 60 -- 1天
+            filepath = "mykey.aes"
+        backend <- defaultClientSessionBackend minutes filepath
+----
+
+还有其它一些函数可以帮你更好的控制client-session，但它们很少会用到。如果你感兴
+趣，可以参阅++Yesod.Core++模块的文档。还可以实施其它形式的会话，比如服务器端会
+话。据我所知，目前还没有其它类似的实现。
+
+NOTE: 如果指定的密钥文件不存在，它会被自动创建并包含一个随机生成的密钥。当你将
+应用部署到生产环境时，你应该包含预先生成的密钥，否则所有已经存在的会话，在新密
+钥文件生成时都会失效。脚手架站点会自动为你处理。
+
+=== 会话操作
+
+像大多数web框架那样，Yesod中的会话是以键-值(key-value)方式存储的。基础的会话
+API包括四个函数：++lookupSession++从关键字得到值(如果存在的话)，++getSession++
+返回所有的键/值对，++setSession++给一个值设置一个键，++deleteSession++清除一个
+键的值。
+
+[source, haskell]
+----
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE QuasiQuotes           #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+import           Control.Applicative ((<$>), (<*>))
+import qualified Web.ClientSession   as CS
+import           Yesod
+
+data App = App
+
+mkYesod "App" [parseRoutes|
+/ HomeR GET POST
+|]
+
+getHomeR :: Handler Html
+getHomeR = do
+    sess <- getSession
+    defaultLayout
+        [whamlet|
+            <form method=post>
+                <input type=text name=key>
+                <input type=text name=val>
+                <input type=submit>
+            <h1>#{show sess}
+        |]
+
+postHomeR :: Handler ()
+postHomeR = do
+    (key, mval) <- runInputPost $ (,) <$> ireq textField "key" <*> iopt textField "val"
+    case mval of
+        Nothing -> deleteSession key
+        Just val -> setSession key val
+    liftIO $ print (key, mval)
+    redirect HomeR
+
+instance Yesod App where
+    -- 将会话的超时时间设为1分钟，这样更利于测试
+    makeSessionBackend _ = do
+        backend <- defaultClientSessionBackend 1 "keyfile.aes"
+        return $ Just backend
+
+instance RenderMessage App FormMessage where
+    renderMessage _ _ = defaultFormMessage
+
+main :: IO ()
+main = warp 3000 App
+----
+
+=== 消息
+
+前面章节提到过会话的一个用途是消息。它们可以用来解决web开发中的一个常见问题：
+当用户提交一个++POST++请求时，web应用对请求进行处理，然后应用在把用户重定向到
+新页面的__同时__给用户发送提交成功的消息。(这就是所谓的Post/Redirect/Get。)
+
+Yesod提供了一对函数来完成这个工作流：++setMessage++函数在会话中存储一个值，
+++getMessage++函数从会话读取最近加入的值，并清空它以保证同一消息不显示两次。
+
+建议的做法是将++getMessage++放在++defaultLayout++中，这样消息能立刻显示给用户
+，而不用在每个处理函数中调用++getMessage++。
+
+[source, haskell]
+----
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE QuasiQuotes           #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeFamilies          #-}
+import           Yesod
+
+data App = App
+
+mkYesod "App" [parseRoutes|
+/            HomeR       GET
+/set-message SetMessageR POST
+|]
+
+instance Yesod App where
+    defaultLayout widget = do
+        pc <- widgetToPageContent widget
+        mmsg <- getMessage
+        giveUrlRenderer
+            [hamlet|
+                $doctype 5
+                <html>
+                    <head>
+                        <title>#{pageTitle pc}
+                        ^{pageHead pc}
+                    <body>
+                        $maybe msg <- mmsg
+                            <p>Your message was: #{msg}
+                        ^{pageBody pc}
+            |]
+
+instance RenderMessage App FormMessage where
+    renderMessage _ _ = defaultFormMessage
+
+getHomeR :: Handler Html
+getHomeR = defaultLayout
+    [whamlet|
+        <form method=post action=@{SetMessageR}>
+            My message is: #
+            <input type=text name=message>
+            <button>Go
+    |]
+
+postSetMessageR :: Handler ()
+postSetMessageR = do
+    msg <- runInputPost $ ireq textField "message"
+    setMessage $ toHtml msg
+    redirect HomeR
+
+main :: IO ()
+main = warp 3000 App
+----
+
+.初次载入页面，无消息
+image::../images/messages-1.png[]
+
+.在文本框中输入新消息
+image::../images/messages-1.png[]
+
+.提交后，消息显示在页面顶部
+image::../images/messages-3.png[]
+
+.刷新后，消息清除
+image::../images/messages-4.png[]
+
+=== 最终目的(Ultimate Destination)
+
+不要把这节的名字误以为是一部惊悚电影的名字，最终目的一开始是为Yesod的登录框架
+开发的一项技术，但具有更多用途。假设用户请求的一个页面需要登录。如果用户未登录
+，你需要将他/她重定向至登录页面。一个设计良好的web应用会在登录成功后__再将用户
+重定向回最开始请求的页面__。这就是我们说的最终目的。
+
+++redirectUltDest++将用户重定向到会话中所设置的最终目的，并从会话中清除它。它
+还有一个默认目的，以防没有在会话中没有配置目的。要在会话中设置目的地址，有三种
+方法：
+
+* ++setUltDest++设置指定URL的目的地址，可以用文本URL或类型安全URL.
+
+* ++setUltDestCurrent++设置当前请求的URL为目的地址。
+
+* ++setUltDestReferer++基于++Referer++(上一个页面的URL)头设置目的路径。
+
+另外还有++clearUltDest++函数，会话中如果有最终目的地址，则将其删除。
+
+让我们看一个小例子。它允许用户在会话中设置他/她的名字，然后在另一个路由显示这
+个名字。如果还没有在会话中设置名字，则用户会被重定向至名字设置页面，并且会自动
+在会话中设置一个最终目的来把用户带回当前页面。
+
+
+[source, haskell]
+----
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE QuasiQuotes           #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeFamilies          #-}
+import           Yesod
+
+data App = App
+
+mkYesod "App" [parseRoutes|
+/         HomeR     GET
+/setname  SetNameR  GET POST
+/sayhello SayHelloR GET
+|]
+
+instance Yesod App
+
+instance RenderMessage App FormMessage where
+    renderMessage _ _ = defaultFormMessage
+
+getHomeR :: Handler Html
+getHomeR = defaultLayout
+    [whamlet|
+        <p>
+            <a href=@{SetNameR}>Set your name
+        <p>
+            <a href=@{SayHelloR}>Say hello
+    |]
+
+-- 显示名字设置表单
+getSetNameR :: Handler Html
+getSetNameR = defaultLayout
+    [whamlet|
+        <form method=post>
+            My name is #
+            <input type=text name=name>
+            . #
+            <input type=submit value="Set name">
+    |]
+
+-- 获取用户提交的名字
+postSetNameR :: Handler ()
+postSetNameR = do
+    -- 得到提交的名字并将其写入会话
+    name <- runInputPost $ ireq textField "name"
+    setSession "name" name
+
+    -- 在我们得到名字后，重定向至最终目的。
+    -- 如果没有设置最终目的，则重定向至首页。
+    redirectUltDest HomeR
+
+getSayHelloR :: Handler Html
+getSayHelloR = do
+    -- 在会话中查询名字
+    mname <- lookupSession "name"
+    case mname of
+        Nothing -> do
+            -- 会话中没有名字，将当前页面设置为最张目的并重定向至名字设置页面
+            setUltDestCurrent
+            setMessage "Please tell me your name"
+            redirect SetNameR
+        Just name -> defaultLayout [whamlet|<p>Welcome #{name}|]
+
+main :: IO ()
+main = warp 3000 App
+----
+
+=== 小结
+
+会话是用来绕过HTTP无状态性的首要方法。我们不应该把它当成逃生舱口而用它来执行任
+意的操作：web应用的无状态性是一个优点，我们应该尽可能遵守它。尽管如此，对于一
+些特定的应用场景，保持状态至关重要。
+
+Yesod中的会话API非常简单。它提供了一个键-值存储，和一些基于常见用例的辅助函数
+。如果正确使用的话，以其较小的开销，会话可以成为你web开发中很自然的一部分。
+
+
