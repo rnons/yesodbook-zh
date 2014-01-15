@@ -1,0 +1,1353 @@
+== Persistent
+
+表单处理用户与应用间的边界问题。另一个需要我们处理的边界是应用与存储层之间的。
+不管是SQL数据库、YAML文件、或是二进制blob，大部分情况下你的存储层都无法原生的
+理解你应用中的数据类型，你会需要执行一些数据编组(marshaling)操作。Persistent是
+Yesod针对数据存储的解决方案，它是一个用Haskell写的类型安全、通用的数据存储接口
+。
+
+Haskell有很多不同的数据库绑定(binding)库。然而，它们大部分都不掌握数据模型
+(schema)信息，因此不能提供有用的静态类型保证。它们还强制程序员对不同数据库使用
+不同的API和数据类型。
+
+有些Haskell程序员尝试了一种更具革命性的方法：创建Haskell专用的数据存储，能够容
+易的存储任何强类型Haskell数据。这种方法对某些特定的应用场景很好，但它将程序员
+限制在其类库所提供的存储技术中，而且与其它编程语言的交互不友好。
+
+相比之下，Persistent允许我们在现有的数据库中选择，这些数据库针对不同的数据存储
+应用场景做了优化、能与其它编程语言交互、能使用安全高效的查询接口，同时仍能保持
+Haskell数据的类型安全。
+
+Persistent遵循的指导原则是类型安全和简洁、声明式的语法。其它很棒的特性包括：
+
+* 与数据库无关。对PostgreSQL、SQLite、MySQL和MongoDB提供一流的支持，对Redis的
+  支持还是实验性的。
+
+* 方便的数据建模。
+  Persistent允许你以类型安全的方式建模和使用数据关系。Persistent默认的类型安全
+  API不支持join操作，这样能支持更广泛的存储层。
+  Join和其它SQL专用功能可以通过原始SQL层(只有极少的类型安全)完成。
+  另一个库，link:http://hackage.haskell.org/package/esqueleto[Esqueleto]，构建
+  在Persistent的数据模型之上，为join和SQL语句提供了类型安全
+
+* 自动执行数据库迁移(migration)。
+
+Persistent与Yesod能很好配好，但它也完全可以作为单独的类库使用。本章大部分时候
+都只讲Persistent本身。
+
+=== 概要
+
+[source, haskell]
+----
+{-# LANGUAGE EmptyDataDecls    #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes       #-}
+{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE TypeFamilies      #-}
+import           Control.Monad.IO.Class  (liftIO)
+import           Database.Persist
+import           Database.Persist.Sqlite
+import           Database.Persist.TH
+
+share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
+Person
+    name String
+    age Int Maybe
+    deriving Show
+BlogPost
+    title String
+    authorId PersonId
+    deriving Show
+|]
+
+main :: IO ()
+main = runSqlite ":memory:" $ do
+    runMigration migrateAll
+
+    johnId <- insert $ Person "John Doe" $ Just 35
+    janeId <- insert $ Person "Jane Doe" Nothing
+
+    insert $ BlogPost "My fr1st p0st" johnId
+    insert $ BlogPost "One more for good measure" johnId
+
+    oneJohnPost <- selectList [BlogPostAuthorId ==. johnId] [LimitTo 1]
+    liftIO $ print (oneJohnPost :: [Entity BlogPost])
+
+    john <- get johnId
+    liftIO $ print (john :: Maybe Person)
+
+    delete janeId
+    deleteWhere [BlogPostAuthorId ==. johnId]
+----
+
+=== 解决边界问题
+
+假设我们在一个SQL数据库中存储了人员信息。你的表可能是像这样的：
+
+[source, sql]
+----
+CREATE TABLE person(id SERIAL PRIMARY KEY, name VARCHAR NOT NULL, age INTEGER)
+----
+
+如果你用的是PostgreSQL数据库，可以保证数据库绝不会在age字段存储任意的文本值。
+(SQLite就不能保证这一点，不过让我们暂时忽略这点。)为了映射这个数据库表，你需要
+创建这样的Haskell数据类型：
+
+[source, haskell]
+----
+data Person = Person
+    { personName :: Text
+    , personAge :: Int
+    }
+----
+
+看起来所有数据都类型安全了：数据库模型与我们的Haskell数据类型相匹配、数据库能
+保证无效数据不会被存储、一切都很棒。然而，直到：
+
+* 你想从数据库取出数据，数据库层给你返回的是无类型格式的数据。你想查询年龄在32
+* 岁以上的人，而你不小心在SQL语句中写成了“三十二”。猜猜会怎样
+  ：编译没问题，你直到运行时都不会发现问题。
+* 你决定按字母顺序查询前10个人。没问题...直到你的SQL有拼写错误。再一次，你只有
+  运行时才能发现。
+
+在动态语言中，对这些问题的解决方法是单元测试。对任何__可能__出错的地方，你都要
+写一个测试用例。但我敢肯定你已经察觉到了，Yesod并不是这样来处理问题的。我们更
+愿意利用Haskell的强类型来尽可能多的帮助我们，数据存储问题也不例外。
+
+所以问题是：如何用Haskell的类型系统来拯救我们？
+
+==== 类型
+
+像路由那样，要做到类型安全的数据访问本质上并不困难。它只是需要大量单调、容易出
+错、样板式的代码。与往常一样，这意味着我们可以用类型系统来保证正确性。同时为了
+避免重复代码，我们要用一些Haskell模板(Template Haskell)。
+
+NOTE: 早期版本的Persistent更大范围的使用了Haskell模板。从0.6版本开始，参照
+groundhog包，persistent有了一个新架构。这种方法用影子类型(phantom types)来减轻
+很多负担。
+
+++PersistValue++是Persistent的基本单元。它是一个汇总类型(sum type)，可以表示发
+往数据库或从数据库读取的数据。它的定义是：
+
+[source, haskell]
+----
+data PersistValue = PersistText Text
+                  | PersistByteString ByteString
+                  | PersistInt64 Int64
+                  | PersistDouble Double
+                  | PersistRational Rational
+                  | PersistBool Bool
+                  | PersistDay Day
+                  | PersistTimeOfDay TimeOfDay
+                  | PersistUTCTime UTCTime
+                  | PersistZonedTime ZT
+                  | PersistNull
+                  | PersistList [PersistValue]
+                  | PersistMap [(Text, PersistValue)]
+                  | PersistObjectId ByteString -- ^ MongoDB后端专用
+----
+
+每一个Persistent后端都需要知道如何将相关的值转换成数据库所能理解的值。尽管如此
+，如果需要用这些基础类型来表达我们所有的数据会有点笨拙。下一个层次是
+++PersistField++型类，它定义了任意Haskell数据与++PersistValue++相互转换的方法
+。++PersistField++对应的是SQL数据库中的一列。在上面人员表的例子中，名字和年龄
+都是++PersistField++。
+
+为了与用户侧的代码关联起来，最后还有一个++PersistEntity++型类。
+++PersistEntity++的实例对应的是SQL数据库中的一个表。这个类定义了很多函数和一些
+关联类型。回顾一下，我们在Persistent和SQL数据库间有这样的对应关系：
+
+[options="header"]
+|===============
+|SQL|Persistent
+|Datatypes (VARCHAR, INTEGER, etc)|PersistValue
+|Column|PersistField
+|Table|PersistEntity
+
+|===============
+
+==== 代码生成(Code Generation)
+
+为了保证PersistEntity的实例能正确与你的Haskell数据类型匹配，Persistent会负责(
+实例化及生成Haskell数据类型)。从不要重复自己(DRY: Don't Repeat Yourself)的角度
+：你只需要定义一次实体。让我们看一个简单的例子：
+
+[source, haskell]
+----
+{-# LANGUAGE QuasiQuotes, TypeFamilies, GeneralizedNewtypeDeriving, TemplateHaskell, OverloadedStrings, GADTs #-}
+import Database.Persist
+import Database.Persist.TH
+import Database.Persist.Sqlite
+import Control.Monad.IO.Class (liftIO)
+
+mkPersist sqlSettings [persistLowerCase|
+Person
+    name String
+    age Int
+    deriving Show
+|]
+----
+
+我们结合使用了Haskell模板与准引用(就像定义路由时那样)：++persistLowerCase++是
+一个准引用，它将空格敏感的语法转换为一列实体定义。“Lower case“指的是生成的表名
+是小写的。在这个定义中，名为++SomeTable++的实体会变成表为++some_table++的SQL表
+。你还可以用++persistFileWith++函数从外部文件定义实体。++mkPersist++接受一列实
+体，并声明：
+
+* 给每个实体声明一个Haskell数据类型。
+* 将每个数据类型都声明成++PersistEntity++的实例。
+
+上面的例子生成的代码会是这样的：
+
+[source, haskell]
+----
+{-# LANGUAGE TypeFamilies, GeneralizedNewtypeDeriving, OverloadedStrings, GADTs #-}
+import Database.Persist
+import Database.Persist.Sqlite
+import Control.Monad.IO.Class (liftIO)
+import Control.Applicative
+
+data Person = Person
+    { personName :: !String
+    , personAge :: !Int
+    }
+  deriving (Show, Read, Eq)
+
+type PersonId = Key Person
+
+instance PersistEntity Person where
+    -- 一个广义代数数据类型(GADT: Generalized Algebraic Datatype)。
+    -- 这提供给我们一种匹配字段和其数据类型的类型安全的方法。
+    data EntityField Person typ where
+        PersonId   :: EntityField Person PersonId
+        PersonName :: EntityField Person String
+        PersonAge  :: EntityField Person Int
+
+    data Unique Person
+    type PersistEntityBackend Person = SqlBackend
+
+    toPersistFields (Person name age) =
+        [ SomePersistField name
+        , SomePersistField age
+        ]
+
+    fromPersistValues [nameValue, ageValue] = Person
+        <$> fromPersistValue nameValue
+        <*> fromPersistValue ageValue
+    fromPersistValues _ = Left "Invalid fromPersistValues input"
+
+    -- 每个字段的信息，在内部被用来生成SQL语句
+    persistFieldDef PersonId = FieldDef
+        (HaskellName "Id")
+        (DBName "id")
+        (FTTypeCon Nothing "PersonId")
+        SqlInt64
+        []
+        True
+        Nothing
+    persistFieldDef PersonName = FieldDef
+        (HaskellName "name")
+        (DBName "name")
+        (FTTypeCon Nothing "String")
+        SqlString
+        []
+        True
+        Nothing
+    persistFieldDef PersonAge = FieldDef
+        (HaskellName "age")
+        (DBName "age")
+        (FTTypeCon Nothing "Int")
+        SqlInt64
+        []
+        True
+        Nothing
+----
+
+你可能想到了，++Person++数据类型与Haskell模板中的定义高度一致。我们还通过一个
+广义代数数据类型(GADT)给每个域一个单独的构造函数。这个GADT编码了实体类型和字段
+的类型。我们在Persistent中会多次使用这些构造函数，比如当我们进行数据筛选时，要
+保证筛选条件的类型与字段的类型一致。
+
+我们可以像使用其它Haskell类型一样使用所生成的++Person++类型，可以将它传递给其
+它Persistent函数。
+
+[source, haskell]
+----
+main = runSqlite ":memory:" $ do
+    michaelId <- insert $ Person "Michael" 26
+    michael <- get michaelId
+    liftIO $ print michael
+----
+
+我们从标准的数据库连接代码开始讲。这个例子中，我们用的是单次连接函数。
+Persistent也自带了连接池(connection pool)函数，是我们通常在生产环境要用的。
+
+这个例子中，我们能看到这两个函数：++insert++在数据库中创建一条新的记录，并返回
+它的ID。和Persistent中的所有要素一样，ID是类型安全的。我们会在后文详述ID是怎么
+工作的。因此当你运行++insert $ Person "Michael" 26++时，它的返回值类型是
+++PersonId++。
+
+第二个函数是++get++，它尝试通过++Id++从数据库加载一个值。在Persistent中，你永
+远不用担心你把键值用到错误的表上：试图使用++PersonId++从另一个实体(比如
+++House++)加载数据，是无法编译通过的。
+
+==== PersistStore
+
+上例中最后一个没解释的细节是：++runSqlite++函数究竟做了什么操作，还有我们数据
+库操作是运行在哪个monad里？
+
+所有数据库操作都需要在++PersistStore++实例中。就像它的名字所说的一样，每一种数
+据存储(PostgreSQL、SQLite、MongoDB)都有++PersistStore++的实例。就是在这里进行
+所有++PersistValue++到数据库相关值的转换、SQL查询、等等。
+
+NOTE: 你可以想象，虽然++PersistStore++给外部世界提供了安全、类型完善的接口，还
+是有很多数据库操作可能会出错。然而，通过在一个地方自动、彻底的测试代码，我们可
+以将容易出错的代码集中化，并尽可能的保证没有bug。
+
+++runSqlite++用提供的连接语句创建到数据库的单次连接。作为例子，我们使用了
+++:memory:++，它是一个内存中的数据库。所有SQL后端都共用一个++PersistSotre++实
+例：即++SqlPersist++。++runSqlite++通过所生成的连接值，来运行++SqlPersist++操
+作。
+
+NOTE: 其实还有一些型类：++PersistUpdate++和++PersistQuery++。不同的型类提供了
+不同的功能，这让我们可以给更简单的数据库(如Redis)写绑定库，即使这些数据库不提
+供Persistent中所有的高级功能。
+
+需要重点注意的一件事是在一条++runSqlite++语句中执行的所有操作都是在一个事务
+(transaction)中运行。它说明两件重要的事：
+
+* 对很多数据库，提交一个事务是很耗费资源的。通过把多个操作放到一个事务中，你可
+  以大大加速代码运行。
+
+* 如果在++runSqlite++中抛出了异常，所有操作都会回滚(假设你的后端支持回滚的话)。
++
+NOTE: 这实际上比看起来有更深远的影响。很多Yesod中的短路函数，比如重定向
+(redirect)，是用异常来实现的。如果你在Persistent代码块中使用了这些函数，整个事
+务都会回滚。
+
+=== 迁移
+
+很抱歉告诉你，我对你撒了个小谎：上一节的例子实际上不能工作。如果你尝试运行它，
+会得到错误消息：缺失表。
+
+对于SQL数据库，一个主要的痛苦是管理数据定义的变更。Persistent可以帮忙，而不是
+让用户去处理，但你需要__要求__它来帮忙。让我们看看代码：
+
+
+[source, haskell]
+----
+{-# LANGUAGE QuasiQuotes, TypeFamilies, GeneralizedNewtypeDeriving, TemplateHaskell,
+             OverloadedStrings, GADTs, FlexibleContexts #-}
+import Database.Persist
+import Database.Persist.TH
+import Database.Persist.Sqlite
+import Control.Monad.IO.Class (liftIO)
+
+share [mkPersist sqlSettings, mkSave "entityDefs"] [persistLowerCase|
+Person
+    name String
+    age Int
+    deriving Show
+|]
+
+main = runSqlite ":memory:" $ do
+    -- 增加的就是这一行！
+    runMigration $ migrate entityDefs $ entityDef (Nothing :: Maybe Person)
+    michaelId <- insert $ Person "Michael" 26
+    michael <- get michaelId
+    liftIO $ print michael
+----
+
+仅仅是这一个小变化，Persistent就能自动为你创建++Person++表。++runMigration++和
+++migrate++作为两个函数是为了让你能同时迁移多个表。
+
+当只处理几个实体时，这样能行，但如果需要处理几十个实体就会很烦。Persistent有一
+个辅助函数，++mkMigrate++，这样就就不用重复自己。
+
+
+[source, haskell]
+----
+{-# LANGUAGE QuasiQuotes, TypeFamilies, GeneralizedNewtypeDeriving, TemplateHaskell,
+             OverloadedStrings, GADTs, FlexibleContexts #-}
+import Database.Persist
+import Database.Persist.Sqlite
+import Database.Persist.TH
+
+share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
+Person
+    name String
+    age Int
+    deriving Show
+Car
+    color String
+    make String
+    model String
+    deriving Show
+|]
+
+main = runSqlite ":memory:" $ do runMigration migrateAll
+----
+
+++mkMigrate++是一个Haskell模板函数，它会创建一个新函数，新函数会自动对所有
+++persist++块中定义的实体调用++migratte++。++share++函数只是一个小辅助函数，它
+将persist块中的信息传递到每个Haskell模板函数，并拼接结果。
+
+Persistent对于迁移期间可以执行的操作相当保守。它先从数据库加载表信息，完全以定
+义好的SQL数据类型表示。然后将其与代码中的实体定义做比较。对于以下情况，它会自
+动修改数据定义：
+
+* 字段的数据类型变更。然而，数据库可能会阻止修改，如果数据无法转义。
+
+* 新增了字段。然而，如果是非空(not null)字段，又没有提供默认值(我们稍后会讨论)
+  且数据库中已经有数据，数据库就会阻止迁移。
+
+* 一个字段从非空变成可空。在相反的情况下，Persistent会尝试转换，由数据库批准。
+
+* 增加了新的实体。
+
+然而，有些情况Persistent不能处理：
+
+* 字段或实体重命名：Persistent无法知道“name”被重命名成“fullName”：它只知道有一
+  个旧的字段叫name，有一个新的字段叫fullName。
+
+* 删除字段：因为这会导致数据丢失，Persistent默认拒绝这样的操作(你可以使用
+  ++runMigrationUnsafe++代替++runMigration++来强制执行，虽然**不**推荐这么做)
+  。
+
+++runMigration++会将迁移过程输出在++stderr++中(你可以用++runMigrationSilent++
+来绕过输出)。它会尽可能的使用++ALTER TABLE++命令。然而，在SQLite中，++ALTER
+TABLE++的能力非常有限，因此，Persistent必须将数据从一个表拷贝到另一个表。
+
+最后，如果你不想让Persistent替你__执行__迁移，而是希望它告诉你需要做哪些迁移，
+可以用++printMigration++函数。这个函数会打印出++runMigration++会为你执行的操作
+。这对于执行Persistent无法完成的迁移会有用，比如在迁移中加入任意SQL语句，或将
+迁移内容写入日志等。
+
+=== 唯一性
+
+除了可以声明实体中的字段，你还可以声明唯一性约束。一个典型的例子是要求用户名唯
+一。
+
+[source, persistent]
+----
+User
+    username Text
+    UniqueUsername username
+----
+
+每个字段的名字必须以小写字母开始，而唯一性约束必须以大写字母开始，因为在
+Haskell中它是一个数据构造函数。
+
+[source, haskell]
+----
+{-# LANGUAGE QuasiQuotes, TypeFamilies, GeneralizedNewtypeDeriving, TemplateHaskell,
+             OverloadedStrings, GADTs, FlexibleContexts #-}
+import Database.Persist
+import Database.Persist.Sqlite
+import Database.Persist.TH
+import Data.Time
+import Control.Monad.IO.Class (liftIO)
+
+share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
+Person
+    firstName String
+    lastName String
+    age Int
+    PersonName firstName lastName
+    deriving Show
+|]
+
+main = runSqlite ":memory:" $ do
+    runMigration migrateAll
+    insert $ Person "Michael" "Snoyman" 26
+    michael <- getBy $ PersonName "Michael" "Snoyman"
+    liftIO $ print michael
+----
+
+为了声明字段组合的唯一性，我们在声明中增加一行。Persistent知道你是在定义一个唯
+一性构造函数，因为那一行以大写字母开头。(构造函数后的)每个词都必须是实体中的字
+段。
+
+唯一性的主要限制是它只能被应用于非空字段。原因是SQL标准对于如何表达++NULL++的
+唯一性很模糊(比如，++NULL=NULL++是真还是假？)。除了这个模糊性，大部分SQL引擎实
+际上的规则与Haskell数据类型所想的__相反__(比如，PostgreSQL认为++NULL=NULL++为
+假，而Haskell认为++Nothing == Nothing++为真)。
+
+除了在数据库层面对数据一致性进行保证，唯一性限制还可以用来在你的Haskell代码中
+执行特殊的查询，就像上面例子中的++getBy++函数。它借助++Unique++关联类型工作。
+在上面的例子中，我们会得到一个新的构造函数：
+
+[source, haskell]
+----
+PersonName :: String -> String -> Unique Person
+----
+
+=== 查询
+
+基于你的目标是什么，可以有不同的方法来查询数据库。有些查询命令用数字ID，其它可
+能用筛选。查询在返回结果的数量上也有差异：有些查询不会返回超过一个结果(如果查
+询用的关键字是唯一的)，而其它查询能返回很多结果。
+
+Persistent因此提供了一些不同的查询函数。与往常一样，我们试图通过类型编码尽可能
+多的不变量(invariants)。比如，一条查询如果只能返回0或1个结果，则用++Maybe++封
+装，而能返回多个结果的查询，返回值的类型是列表。
+
+==== 用ID查询
+
+在Persistent中最简单的查询是基于ID的。因为这个值有可能不存在，所以它的返回值封
+装在++Maybe++中。
+
+[source, haskell]
+----
+    personId <- insert $ Person "Michael" "Snoyman" 26
+    maybePerson <- get personId
+    case maybePerson of
+        Nothing -> liftIO $ putStrLn "Just kidding, not really there"
+        Just person -> liftIO $ print person
+----
+
+这对于提供像__/person/5__这样的URL的站点非常有用。然而，这样的话，我们通常不需
+要考虑++Maybe++封装，只想要值，如果查询失败则返回404。幸运的是，++get404++(由
+yesod-persistent包提供)函数能帮助我们。我们会在讲Persistent与Yesod集成时讲更多
+细节。
+
+==== 通过唯一性约束查询
+
+++getBy++和++get++几乎上一样，除了：
+
+. 它的参数是唯一性约束；也就是说，它接收++Unique++值，而不是ID。
+. 它返回一个++Entity++而不是一个值。++Entity++是ID和值的组合。
+
+[source, haskell]
+----
+    personId <- insert $ Person "Michael" "Snoyman" 26
+    maybePerson <- getBy $ UniqueName "Michael" "Snoyman"
+    case maybePerson of
+        Nothing -> liftIO $ putStrLn "Just kidding, not really there"
+        Just (Entity personId person) -> liftIO $ print person
+----
+
+像++get404++一样，也有++getBy404++函数。
+
+==== 选择函数
+
+极有可能，你会需要更强大的查询。你可能想查询年龄在一定岁数以上的所有人；所有蓝
+色的汽车；没有用邮箱地址注册的用户。这些情况，你需要用选择函数。
+
+所有的选择函数都有相似的接口，但输出略有不同：
+
+[options="header"]
+|===============
+|函数名|返回值
+|selectSource|一个包含所有查询结果的ID和值的++Source++。这让你可以写流式代码
+(streaming code)。
+
+NOTE: ++Source++是一个数据流，是++conduit++包的一部分。推荐阅读
+link:https://www.fpcomplete.com/user/snoyberg/library-documentation/conduit-overview[School
+of Haskell conduit教程]来开始。
+
+|selectList|一个包含所有查询结果的ID和值的列表。所有记录都会被载入到内存中。
+|selectFirst|如果查询成功，只取查询结果的第一个ID和值。
+|selectKeys|只返回键，而不返回值, 返回结果的类型是++Source++。
+|===============
+
+++selectList++是最常用的，因此我们专门讲解它。之后理解其它几个函数也很容易。
+
+++selectList++有两个参数：一列++Filter++和一列++SelectOpt++。前者限制了结果所
+需具有的特征；它允许等于、小于、在范围内等(限制条件)。++SelectOpt++提供了三种
+功能：排序、限制返回结果的数量、结果偏移(offset)一定行数。
+
+NOTE: 结合使用返回数量限制(limits)和偏移量(offsets)非常重要；它允许在你的web应
+用中有效的分页(pagination)。
+
+让我们看一个筛选的例子，再来分析它。
+
+[source, haskell]
+----
+    people <- selectList [PersonAge >. 25, PersonAge <=. 30] []
+    liftIO $ print people
+----
+
+这个例子很简单，我们只需讲三点：
+
+. ++PersonAge++是一个关联影子类型(associated phantom type)的构造函数。这听起来
+很可怕，但重点在于它唯一标识了“person”表的“age”列，而且它知道age列的类型是
+++Int++。(这就是影子部分。)
+
+. 我们有很多Persistent筛选运算符。它们都很直接：只要在普通的关系运算符后加个点
+。有三个需要注意的地方，我下面会讲。
+
+. 筛选条件是用逻辑与给合在一起，所以我们的限制条件意思是“年龄在25岁以上、在30
+岁(含)以下”。我们稍后会介绍用逻辑或连接筛选条件。
+
+有一个运算符的命名有点特别：“不等于”。我们用++!=.++，因为++/=.++被用作更新运算
+符(表示“分离然后设置(divide-and-set)”，稍会后讲)。不用担心：如果你用错了，编译
+器会报错。另外两个特殊的运算符是“在范围内”和“不在范围内”。他们分别是++<-.++和
+++/<-.++(都以点结束)。
+
+对于逻辑或连接筛选条件的情况，我们使用++||.++运算符。比如：
+
+
+[source, haskell]
+----
+    people <- selectList
+        (       [PersonAge >. 25, PersonAge <=. 30]
+            ||. [PersonFirstName /<-. ["Adam", "Bonny"]]
+            ||. ([PersonAge ==. 50] ||. [PersonAge ==. 60])
+        )
+        []
+    liftIO $ print people
+----
+
+这个(完全胡谄)的例子说的是：查询年龄在26-30(含)间，或者名字既不是Adam也不是
+Bonny，或者年龄是50或60岁的人。
+
+===== 选择选项(SelectOpt)
+
+前面例子中++selectList++的第二个参数都是空列表。就是没有指明选项，意思是：按数
+据库默认的方式排序、返回所有结果、不要跳过任何结果。一个++SelectOpt++有四个构
+造函数，可以用来改变选择选项。
+
+Asc:: 在指定列以升序排序。它使用与筛选一样的影子类型，比如++PersonAge++。
+
+Desc:: 与++Asc++一样，不过是降序。
+
+LimitTo:: 接受一个整型参数。只返回不超过指定数量的结果。
+
+OffsetBy:: 接受一个整型参数。跳过指定数量的结果。
+
+下面的代码定义了一个函数，它会将结果分页。它返回所有年龄在18岁及以上的人，然后
+按年龄排序(年长的在前)。对于年龄相同的人，再按姓排序，最后按名排序。
+
+[source, haskell]
+----
+resultsForPage pageNumber = do
+    let resultsPerPage = 10
+    selectList
+        [ PersonAge >=. 18
+        ]
+        [ Desc PersonAge
+        , Asc PersonLastName
+        , Asc PersonFirstName
+        , LimitTo resultsPerPage
+        , OffsetBy $ (pageNumber - 1) * resultsPerPage
+        ]
+----
+
+=== 操作(Manipulation)
+
+查询只是任务的一半。我们还需要能够给数据库增加数据，或修改现有数据。
+
+==== 插入
+
+能够查询、筛选数据库中的数据很好，但首先数据是怎么进到数据库的呢？答案是
+++insert++函数。你给它一个值，它返回一个ID。
+
+在这里，有必要解释一下Persistent背后的哲学。在很多其它的对象关系映射(ORM:
+Object-Relational Mapping)方案中，用来存放数据的数据类型是不透明的：你需要通过
+他们定义好的接口来存取数据。而Persistent不是这样的，Persistent的做法是：我们完
+全用的是普通的代数数据类型。这意味着你能得到所有(Haskell)的优点：模式匹配、
+currying和所有你习惯的。
+
+尽管如此，有一些事我们__无法__做到。举个例子，当Haskell中的记录值变更时，没有
+办法自动更新数据库中对应的值。当然，Haskell自身的纯计算(purity)和不可变性
+(immutability)，意味着这种想法本身就没有多少意义，所以我也不会为此伤心落泪。
+
+然而，有一个问题是初学者经常感到困扰的：为什么ID和值是完全分离的？将ID嵌入值似
+乎非常合逻辑。换句话说，不写成这样：
+
+[source, haskell]
+----
+data Person = Person { name :: String }
+----
+
+而是写成
+
+[source, haskell]
+----
+data Person = Person { personId :: PersonId, name :: String }
+----
+
+但是，这样做立即会有个问题：我们怎么执行++insert++？如果构造一个Person值需要ID
+，而ID要通过插入才能得到，而插入又需要一个Person值，我们就陷入了无限循环。我们
+可以用++undefined++来解决它，但那只是招来问题。
+
+好，你说，让我们试试更安全的方法：
+
+[source, haskell]
+----
+data Person = Person { personId :: Maybe PersonId, name :: String }
+----
+
+比起++insert $ Person undefined "Michael"++，我当然更喜欢++insert $ Person
+Nothing "Michael"++。我们的类型还能更简单，对吧？比如++selectList++函数的返回
+值会变成简单的++[Person]++，而不是丑陋的++[Entity SqlPersist Person]++。
+
+问题是“丑陋的”返回值却相当有用。++Entity Person++在类型层面清楚的说明我们在
+处理一个数据库中的值。比如说我们想创建到另一个页面的链接，但需要用到++PersonId++(
+我们稍后会看到这很常见)。++Entity Person++的形式明白无误的告诉我们这一信息；将
+++PersonId++作为++Person++的记录，并用++Maybe++封装，意味着运行时要额外检查
+++Just++，而不是能更好预防错误的编译时检查。
+
+最后，将ID嵌入值会导致语义不匹配。++Person++是值。两个人(在数据库语境中)是一样
+的如果它们的所有字段值都一样。如果把ID嵌入值，我们讨论的不再是一个人，而是数据
+库的一行。相等不再是相等，而是一致：这是__同一个人__，而不是相同的人。
+
+换句话说，将ID分离会有些恼人的地方，但总体上，它是__正确的__做法，它能在大的框
+架上保证更好、更少bug的代码。
+
+==== 更新
+
+现在，在以上讨论的基础上，让我们来想想数据更新。最简单的更新方法是：
+
+[source, haskell]
+----
+let michael = Person "Michael" 26
+    michaelAfterBirthday = michael { personAge = 27 }
+----
+
+但这实际上没有更新任何值，它只是基于旧的创建了一个新的++Person++值。当我们说更
+新，我们说的__不是__修改Haskell代码中的值。(我们最好不要，因为Haskell数据类型
+是不可修改的。)
+
+相反，我们要考虑修改数据表中行数据的方法。最简单的方法是用++update++函数。
+
+[source, haskell]
+----
+    personId <- insert $ Person "Michael" "Snoyman" 26
+    update personId [PersonAge =. 27]
+----
+
+++update++函数有两个参数：ID和一列++Update++操作。最简单的更新操作是赋值，但它
+不总是最佳选择。如果你想把某些人的年龄加1，但你不知道他们当前的年龄呢？
+Persistent可以帮你：
+
+[source, haskell]
+----
+haveBirthday personId = update personId [PersonAge +=. 1]
+----
+
+你可能想到了，我们可以用所有基础的数学运算符：++$$+=.$$++、++-=.++、++\*=.++和
+++/=.++(句号)。这些对于更新一条记录的情况很方便，但它们对于保证ACID(Atomicity
+、Consistency、Isolation、Durability)也非常重要。想象另一种情况：取出一个
+++Person++值，增加他/她的年龄，把新的值更新到数据库。如果你有两个线程/进程同时
+在读写数据库，你可能有危险(提示：资源死锁(race conditions))。
+
+有时候你会想一次更新多个域(比如，给所有员工加薪5%)。++updateWhere++接受两个参
+数：一列筛选条件和一列要应用的更新。
+
+[source, haskell]
+----
+    updateWhere [PersonFirstName ==. "Michael"] [PersonAge *=. 2] -- 漫长的一天(章)
+----
+
+有时候，你只想将数据库中的一个值完全替换为另一个值。这种情况，你要用(惊喜
+)++replace++函数。
+
+[source, haskell]
+----
+    personId <- insert $ Person "Michael" "Snoyman" 26
+    replace personId $ Person "John" "Doe" 20
+----
+
+==== 删除
+
+虽然数据库操作让我们头疼，但有时我们还是要和数据它们说再见。要删除它们，有三个
+函数：
+
+delete:: 基于ID删除
+
+deleteBy:: 基于唯一约束删除
+
+deleteWhere:: 基于一列筛选条件删除
+
+[source, haskell]
+----
+    personId <- insert $ Person "Michael" "Snoyman" 26
+    delete personId
+    deleteBy $ UniqueName "Michael" "Snoyman"
+    deleteWhere [PersonFirstName ==. "Michael"]
+----
+
+我们甚至可以用deleteWhere删除表中全部记录，我们只要给一些提示，让GHC知道我们感
+兴趣的是哪个表就可以：
+
+[source, haskell]
+----
+    deleteWhere ([] :: [Filter Person])
+----
+
+=== 属性
+
+目前为止，我们已经看到++persistLowerCase++块的基本语法：第一行指明实体的名字，
+然后每个字段对应缩进的一行，每行两个词：字段名和类型。Persistent实际上可以做更
+多：你可以在这两个词后指定任意的属性。
+
+假设我们想让++Person++实体有一个(可选的)年龄字段和表示他/她何时加入系统的时间
+戳字段。对于已经在数据库中的实体，则用当前时刻作为时间戳。
+
+
+[source, haskell]
+----
+{-# LANGUAGE QuasiQuotes, TypeFamilies, GeneralizedNewtypeDeriving, TemplateHaskell,
+             OverloadedStrings, GADTs, FlexibleContexts #-}
+import Database.Persist
+import Database.Persist.Sqlite
+import Database.Persist.TH
+import Data.Time
+import Control.Monad.IO.Class
+
+share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
+Person
+    name String
+    age Int Maybe
+    created UTCTime default=CURRENT_TIME
+    deriving Show
+|]
+
+main = runSqlite ":memory:" $ do
+    time <- liftIO getCurrentTime
+    runMigration migrateAll
+    insert $ Person "Michael" (Just 26) time
+    insert $ Person "Greg" Nothing time
+----
+
+++Maybe++是自带的、单词(single word)属性。它让该字段可选。在Haskell中，这意味
+着它用++Maybe++封装。在SQL中，它让列可空。
+
+++default++属性与数据库后端有关，它使用任何能被数据库理解的语法。在这里，它用
+了数据库自带的++CURRENT_TIME++函数。假设我们想加一个字段，用来表示这个人最喜欢
+的编程语言：
+
+
+[source, haskell]
+----
+{-# LANGUAGE QuasiQuotes, TypeFamilies, GeneralizedNewtypeDeriving, TemplateHaskell,
+             OverloadedStrings, GADTs, FlexibleContexts #-}
+import Database.Persist
+import Database.Persist.Sqlite
+import Database.Persist.TH
+import Data.Time
+
+share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
+Person
+    name String
+    age Int Maybe
+    created UTCTime default=CURRENT_TIME
+    language String default='Haskell'
+    deriving Show
+|]
+
+main = runSqlite ":memory:" $ do
+    runMigration migrateAll
+----
+
+
+NOTE: ++default++属性对Haskell代码本身没有任何影响；你还是需要填充所有值。它只
+会影响到数据库的数据定义及自动迁移。
+
+我们需要将默认值用单引号包起来，这样数据库才能正确的解读它。最后，Persistent使
+用双引号来包含有空格的值，因此，如果我们要将某人的默认家乡设置为“El Salvador”
+：
+
+
+[source, haskell]
+----
+{-# LANGUAGE QuasiQuotes, TypeFamilies, GeneralizedNewtypeDeriving, TemplateHaskell,
+             OverloadedStrings, GADTs, FlexibleContexts #-}
+import Database.Persist
+import Database.Persist.Sqlite
+import Database.Persist.TH
+import Data.Time
+
+share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
+Person
+    name String
+    age Int Maybe
+    created UTCTime default=now()
+    language String default='Haskell'
+    country String "default='El Salvador'"
+    deriving Show
+|]
+
+main = runSqlite ":memory:" $ do
+    runMigration migrateAll
+----
+
+最后一条关于属性的技巧是，你可以指定SQL中的表名和列名。对于与现有数据库交互的
+情况很有用。
+
+
+[source, haskell]
+----
+share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
+Person sql=the-person-table id=numeric_id
+    firstName String sql=first_name
+    lastName String sql=fldLastName
+    age Int Gt Desc "sql=The Age of the Person"
+    UniqueName firstName lastName
+    deriving Show
+|]
+----
+
+关于实体定义的语法还有一些其它特性。一个最新的特性列表在
+link:https://github.com/yesodweb/yesod/wiki/Persistent-entity-syntax[Yesod维基
+]上。
+
+=== 关系
+
+Persistent允许用与非关系型(non-SQL)数据库一致的方式在数据类型间做引用。我们通
+过在相关实体中嵌入ID来实现。因此如果一个人有很多辆车：
+
+[source, haskell]
+----
+{-# LANGUAGE QuasiQuotes, TypeFamilies, GeneralizedNewtypeDeriving, TemplateHaskell,
+             OverloadedStrings, GADTs, FlexibleContexts #-}
+import Database.Persist
+import Database.Persist.Sqlite
+import Database.Persist.TH
+import Control.Monad.IO.Class (liftIO)
+import Data.Time
+
+share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
+Person
+    name String
+    deriving Show
+Car
+    ownerId PersonId Eq
+    name String
+    deriving Show
+|]
+
+main = runSqlite ":memory:" $ do
+    runMigration migrateAll
+    bruce <- insert $ Person "Bruce Wayne"
+    insert $ Car bruce "Bat Mobile"
+    insert $ Car bruce "Porsche"
+    -- 还可以插入更多汽车
+    cars <- selectList [CarOwnerId ==. bruce] []
+    liftIO $ print cars
+----
+
+使用这项技术，你可以定义一对多的关系。要定义多对多的关系，我们需要连接(join)实
+体，它会对每个表都使用一对多的联系。在这里使用唯一性约束也是好主意。比如，如果
+我们要对一个人在哪个商店买了哪些东西建模：
+
+[source, haskell]
+----
+{-# LANGUAGE QuasiQuotes, TypeFamilies, GeneralizedNewtypeDeriving, TemplateHaskell,
+             OverloadedStrings, GADTs, FlexibleContexts #-}
+import Database.Persist
+import Database.Persist.Sqlite
+import Database.Persist.TH
+import Data.Time
+
+share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
+Person
+    name String
+Store
+    name String
+PersonStore
+    personId PersonId
+    storeId StoreId
+    UniquePersonStore personId storeId
+|]
+
+main = runSqlite ":memory:" $ do
+    runMigration migrateAll
+
+    bruce <- insert $ Person "Bruce Wayne"
+    michael <- insert $ Person "Michael"
+
+    target <- insert $ Store "Target"
+    gucci <- insert $ Store "Gucci"
+    sevenEleven <- insert $ Store "7-11"
+
+    insert $ PersonStore bruce gucci
+    insert $ PersonStore bruce sevenEleven
+
+    insert $ PersonStore michael target
+    insert $ PersonStore michael sevenEleven
+----
+
+=== 深入理解类型
+
+目前为止，我们提到了++Person++和++PersonId++，但并没真正解释它们是什么。在最简
+单的情况下，对于一个SQL数据库，++PersonId++可以是++type PersonId = Int64++。然
+而，这意味着无法在类型层面将++PersonId++与++Person++实体进行绑定。因此，你可能
+不小心用++PersonId++去查询++Car++。为了建模这种关系，我们要使用影子类型。所以
+，我们幼稚的下一步是：
+
+[source, haskell]
+----
+newtype Key entity = Key Int64
+type PersonId = Key Person
+----
+
+这很好，直到我们使用的数据库后端不使用Int64来表示ID。这不只是理论上的问题；
+MongoDB用的就是++ByteString++。所以我们需要键值能包含++Int++或++ByteString++
+。看上去应该用一个汇总类型：
+
+[source, haskell]
+----
+data Key entity = KeyInt Int64 | KeyByteString ByteString
+----
+
+但那只是自找麻烦。下一次我们会遇到一个后端使用时间戳作为ID，所以我们又会需要给
+++Key++增加构造函数。这可以持续好一会。幸运的是，我们已经有一个用来表示任意数
+据的汇总类型：++PersistValue++：
+
+[source, haskell]
+----
+newtype Key entity = Key PersistValue
+----
+
+但这样有另一个问题。假设我们有个web应用从用户那得到ID作为参数。它需要以
+++Text++类型接收参数，然后尝试将其转为++Key++。好，这很简单：写一个将++Text++
+转为++PersistValue++的函数，然后将结果用++Key++构造函数封装，对吗？
+
+不对。我们试过这种方法，它有很大的问题。我们最后得到不可能有的++Key++。比如，
+如果我们要用SQL，键必须是整数。但上面描述的方法可以允许任意的文本数据。结果是
+服务器返回一堆500错误，因为数据库用整型列去和文本值做比较而抽风了。
+
+所以我们需要一种将文本值转为++Key++的方法，但它要遵循数据库后端的规则。而且一旦定型
+，答案就很简单：增加另一个影子类型。Persistent中++Key++的真正定义是：
+
+[source, haskell]
+----
+newtype KeyBackend backend entity = Key { unKey :: PersistValue }
+type Key val = KeyBackend (PersistEntityBackend val) val
+----
+
+这个略微有点吓人的构造说的是：我们有一个++KeyBackend++类型，它有两个参数：数据
+库后端和实体。然而，我们**还有**一个简化的++Key++类型，它假设实体和键的后端一
+样，这通常也是正确的假设。
+
+在实践中，它能很好工作：我们可以有一个++Text -> KeyBackend MongoDB entity++函
+数和一个++Text -> KeyBackend SqlPersist entity++函数，然后所有事情都能流畅运行
+。
+
+==== 更复杂、更通用
+
+默认情况下，Persistent会根据使用的数据库后端硬编码你的数据类型。当使用
+++sqlSettings++时，它是++SqlBackend++类型。但如果你希望你的Persistent代码可以
+工作在多个后端上，你可以启用更加通用的类型，将++sqlSettings++替换为
+++sqlSettings { mpsGeneric = True }++。
+
+要理解为什么需要这么做，考虑关系。假设我们想表示博客和博客文章。我们可以这样定
+义实体：
+
+----
+Blog
+    title Text
+Post
+    title Text
+    blogId BlogId
+----
+
+但用++Key++数据类型来表达会是怎样的呢？
+
+[source, haskell]
+----
+data Blog = Blog { blogTitle :: Text }
+data Post = Post { postTitle :: Text, postBlogId :: KeyBackend <这里放什么?> Blog }
+----
+
+我们需要填入后端类型。理论上，我们可以将其硬编码为++SqlPersist++或++Mongo++，
+但那样我们的数据类型就只能工作在一种后端上。对于一个单独的应用，这样做是可以的
+，但如果是类库呢？它需要被多个应用使用，需要使用多种后端。
+
+因此问题会更复杂一些。我们的类型实际上是：
+
+[source, haskell]
+----
+data BlogGeneric backend = Blog { blogTitle :: Text }
+data PostGeneric backend = Post { postTitle :: Text, postBlogId :: KeyBackend backend (BlogGeneric backend) }
+----
+
+注意，我们还是保留了构造函数和记录的短名。最后，为了给普通代码一个简单的接口，
+我们定义一些类型别名：
+
+[source, haskell]
+----
+type Blog = BlogGeneric SqlPersist
+type BlogId = Key SqlPersist Blog
+type Post = PostGeneric SqlPersist
+type PostId = Key SqlPersist Post
+----
+
+不，++SqlPersist++没有硬编码进Persistent。在调用++mkPersist++时你已经传入了
+++sqlSettings++，它告诉我们要用++SqlPersist++。Mongo代码会用++mongoSettings++
+。
+
+这可能有点复杂，但用户代码基本上不会碰到它们。回顾本章：我们没有一次需要直接处
+理++Key++或++Generic++类型。它们最有可能会出现的地方是在编译器的错误消息中。因
+此重点是知道它存在，但它不会影响你的日常使用。
+
+=== 自定义字段
+
+有些时候，你会想要在数据库中自定义字段。最常见的情况是枚举，比如雇员状态。为此
+，Persistent提供了一个Haskell模板辅助函数：
+
+[source, haskell]
+----
+-- @Employment.hs
+{-# LANGUAGE TemplateHaskell #-}
+module Employment where
+
+import Database.Persist.TH
+
+data Employment = Employed | Unemployed | Retired
+    deriving (Show, Read, Eq)
+derivePersistField "Employment"
+
+-- @Main.hs
+{-# LANGUAGE QuasiQuotes, TypeFamilies, GeneralizedNewtypeDeriving, TemplateHaskell,
+             OverloadedStrings, GADTs, FlexibleContexts #-}
+import Database.Persist.Sqlite
+import Database.Persist.TH
+import Employment
+
+share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
+Person
+    name String
+    employment Employment
+|]
+
+main = runSqlite ":memory:" $ do
+    runMigration migrateAll
+
+    insert $ Person "Bruce Wayne" Retired
+    insert $ Person "Peter Parker" Unemployed
+    insert $ Person "Michael" Employed
+----
+
+++derivePersistField++用字符串字段将数据存入数据库，并用该类型的++Show++和
+++Read++实例进行数据编组。这可能没有通过整型存储高效，但也更灵活：即使你以后增
+加新的构造函数，你当前的数据仍然有效。
+
+NOTE: 在这个例子中，我们将定义分成了两个模块。需要这样做是由于GHC的编译步骤约
+束，它本质上是说，在很多情况下，Haskell模板生成的代码不能在它所在的模块中使用
+。
+
+=== Persistent: 原始(raw)SQL
+
+Persistent包提供了与数据库间的类型安全的接口。它试图与后端无关，比如不依赖于
+SQL的关系型特性。我的经验是你可以用这个高层接口轻松执行95％的数据库操作。(实际
+上，我写的大部分web应用都完全使用高层接口。)
+
+但有时候你会想用某个后端专有的特性。我以前使用过的一个特性是全文搜索。这种情况
+下，我们要用到SQL的“LIKE”运算符，Persistent没有建模它。假设我们要查询所有姓氏
+为“Snoyman”的人，然后打印出结果。
+
+NOTE: 实际上，你__可以__用Persisten 0.6新增的特性直接用普通语法表示LIKE运算符
+，它会使用后端对应的运算符。但这仍然是一个(使用原始SQL的)好例子，所以让我们看
+看。
+
+[source, haskell]
+----
+{-# LANGUAGE OverloadedStrings, TemplateHaskell, QuasiQuotes, TypeFamilies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, GADTs, FlexibleContexts #-}
+import Database.Persist.TH
+import Data.Text (Text)
+import Database.Persist.Sqlite
+import Control.Monad.IO.Class (liftIO)
+import Data.Conduit
+import qualified Data.Conduit.List as CL
+
+share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
+Person
+    name Text
+|]
+
+main :: IO ()
+main = runSqlite ":memory:" $ do
+    runMigration migrateAll
+    insert $ Person "Michael Snoyman"
+    insert $ Person "Miriam Snoyman"
+    insert $ Person "Eliezer Snoyman"
+    insert $ Person "Gavriella Snoyman"
+    insert $ Person "Greg Weber"
+    insert $ Person "Rick Richardson"
+
+    -- Persistent没有提供LIKE运算符，但我们希望查询整个Snoyman家族...
+    let sql = "SELECT name FROM Person WHERE name LIKE '%Snoyman'"
+    rawQuery sql [] $$ CL.mapM_ (liftIO . print)
+----
+
+此外还有支持自动数据编组的高层接口。详情请参阅Haddock API文档。
+
+=== 与Yesod集成
+
+希望你已经信服Persistent的威力。如何将它与你的Yesod应用集成呢？如果你使用了脚
+手架(scaffolding)，大部分工作都已为你做好。但像本书通常所做的那样，我们要手动
+来集成，以说明它到底是怎么工作的。
+
+yesod-persistent包提供了Persistent和Yesod间的交汇点。它提供了++YesodPersist++
+型类，它通过++runDB++方法标准化了存取数据库的操作。让我们看看代码。
+
+[source, haskell]
+----
+{-# LANGUAGE QuasiQuotes, TypeFamilies, GeneralizedNewtypeDeriving, FlexibleContexts #-}
+{-# LANGUAGE TemplateHaskell, OverloadedStrings, GADTs, MultiParamTypeClasses #-}
+import Yesod
+import Database.Persist.Sqlite
+import Control.Monad.Trans.Resource (runResourceT)
+import Control.Monad.Logger (runStderrLoggingT)
+
+-- 和之前一样定义我们的实体
+share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
+Person
+    firstName String
+    lastName String
+    age Int Gt Desc
+    deriving Show
+|]
+
+-- 我们将连接池放在基础数据类型中。在程序初始化时，我们就创建连接池，
+-- 每当要执行数据库操作时，就从连接池取出一个连接。
+data PersistTest = PersistTest ConnectionPool
+
+-- 我们只创建一条路由用于访问人员。在路由中使用Id类型非常常见。
+mkYesod "PersistTest" [parseRoutes|
+/ HomeR GET
+/person/#PersonId PersonR GET
+|]
+
+-- 没什么特别的
+instance Yesod PersistTest
+
+-- 现在我们需要定义一个YesodPersist实例，它会记录我们使用的是哪个数据库后端，
+-- 以及怎么执行数据库操作
+instance YesodPersist PersistTest where
+    type YesodPersistBackend PersistTest = SqlPersistT
+
+    runDB action = do
+        PersistTest pool <- getYesod
+        runSqlPool action pool
+
+-- List all people in the database
+getHomeR :: Handler Html
+getHomeR = do
+    people <- runDB $ selectList [] [Asc PersonAge]
+    defaultLayout
+        [whamlet|
+            <ul>
+                $forall Entity personid person <- people
+                    <li>
+                        <a href=@{PersonR personid}>#{personFirstName person}
+        |]
+
+-- 我们返回字符串格式的人员信息，或者当人员在数据库中不存在时返回404。
+getPersonR :: PersonId -> Handler String
+getPersonR personId = do
+    person <- runDB $ get404 personId
+    return $ show person
+
+openConnectionCount :: Int
+openConnectionCount = 10
+
+main :: IO ()
+main = withSqlitePool "test.db3" openConnectionCount $ \pool -> do
+    runResourceT $ runStderrLoggingT $ flip runSqlPool pool $ do
+        runMigration migrateAll
+        insert $ Person "Michael" "Snoyman" 26
+    warp 3000 $ PersistTest pool
+----
+
+这里有两个常用的信息。++runDB++用来在++Handler++中执行数据库操作。在++runDB++
+中，你可以使用本章提到的任何操作函数，比如++insert++和++selectList++。
+
+[NOTE]
+====
+++runDB++的类型是++YesodDB site a -> HandlerT site IO a++。++YesodDB++的定义是
+：
+
+[source, haskell]
+----
+type YesodDB site = YesodPersistBackend site (HandlerT site IO)
+----
+
+因为它构建于++YesodPersistBackend++的关联类型上，它使用了与当前站点一样的数据
+库后端。
+====
+
+另一个新特性是++get404++。它与++get++一样，但当查询无结果时不是返回++Nothing++
+，而是返回404错误页。++getPersonR++函数是真实世界Yesod应用中非常常用的方法：
+用++get404++查询一个值，然后基于查询结果做出响应。
+
+=== 更复杂的SQL
+
+Persistent努力做到与后端无关。这种方法的好处是代码可以很容易切换后端。不足是你
+无法用一些后端专用的特性。可能受影响最大的是SQL的join操作。
+
+幸运的是，得益于Felip Lessa，你可以吃一块蛋糕。
+link:http://hackage.haskell.org/package/esqueleto[Esqueleto]库提供了类型安全的
+SQL查询，它使用现有的Persistent框架。这个包的Haddocks文档很好的介绍了它的用法
+。而且因为它用了很多Persistent的概念，你掌握的大部分Persistent知识都能用上。
+
+==== SQLite以外的数据库
+
+为了让本章例子的简单，我们都用的SQLite后端。为了让事情圆满，下面是概要中例子的
+PostgreSQL版本：
+
+[source, haskell]
+----
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes       #-}
+{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE TypeFamilies      #-}
+import           Control.Monad.IO.Class  (liftIO)
+import           Database.Persist
+import           Database.Persist.Postgresql
+import           Database.Persist.TH
+
+share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
+Person
+    name String
+    age Int Maybe
+    deriving Show
+BlogPost
+    title String
+    authorId PersonId
+    deriving Show
+|]
+
+connStr = "host=localhost dbname=test user=test password=test port=5432"
+
+main :: IO ()
+main = withPostgresqlPool connStr 10 $ \pool -> do
+    flip runSqlPersistMPool pool $ do
+        runMigration migrateAll
+
+        johnId <- insert $ Person "John Doe" $ Just 35
+        janeId <- insert $ Person "Jane Doe" Nothing
+
+        insert $ BlogPost "My fr1st p0st" johnId
+        insert $ BlogPost "One more for good measure" johnId
+
+        oneJohnPost <- selectList [BlogPostAuthorId ==. johnId] [LimitTo 1]
+        liftIO $ print (oneJohnPost :: [Entity BlogPost])
+
+        john <- get johnId
+        liftIO $ print (john :: Maybe Person)
+
+        delete janeId
+        deleteWhere [BlogPostAuthorId ==. johnId]
+----
+
+=== 小结
+
+Persistent将Haskell的类型安全引入数据存储层。与其写一些容易出错、无类型的数据
+访问或手写数据编组代码，你可以依靠Persistent帮你自动完成这些过程。
+
+Persistent的目标是提供你所需要的一切功能，在__大多数__时候。当你需要一些更强大
+的功能时，Persistent允许你直接访问底层的数据库，所以如果你想的话，可以写一个5
+路(5-way)join运算。
+
+Persistent可以直接集成到Yesod的工作流中。不仅++yesod-persistent++包提供了很多
+辅助函数，++yesod-form++和++yesod-auth++包也使用了一些Persistent的功能。
