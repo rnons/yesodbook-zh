@@ -733,7 +733,7 @@ haveBirthday personId = update personId [PersonAge +=. 1]
 ++/=.++(句号)。这些对于更新一条记录的情况很方便，但它们对于保证ACID(Atomicity
 、Consistency、Isolation、Durability)也非常重要。想象另一种情况：取出一个
 ++Person++值，增加他/她的年龄，把新的值更新到数据库。如果你有两个线程/进程同时
-在读写数据库，你可能有危险(提示：资源死锁(race conditions))。
+在读写数据库，你可能有危险(提示：资源竞态(race conditions))。
 
 有时候你会想一次更新多个域(比如，给所有员工加薪5%)。++updateWhere++接受两个参
 数：一列筛选条件和一列要应用的更新。

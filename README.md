@@ -31,6 +31,8 @@
 
 [第十章 Persistent](https://github.com/rnons/yesodbook-zh/blob/master/chapters/persistent.asciidoc)
 
+[第十一章 部署你的web应用](https://github.com/rnons/yesodbook-zh/blob/master/chapters/deploying-your-webapp.asciidoc)
+
 [Yesod]: http://www.yesodweb.com/
 [Haskell]: http://www.haskell.org/
 [Yesodbook源文件]: https://github.com/yesodweb/yesodweb.com-content/tree/master/book
