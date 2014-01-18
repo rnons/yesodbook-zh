@@ -1,0 +1,450 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+    "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta name="generator" content="AsciiDoc 8.6.8" />
+<title></title>
+<link rel="stylesheet" href="/static/asciidoc.css" type="text/css" />
+<link rel="stylesheet" href="/static/layout.css" type="text/css" />
+<script type="text/javascript" src="/static/asciidoc.js"></script>
+<script type="text/javascript">
+/*<![CDATA[*/
+asciidoc.install(2);
+/*]]>*/
+</script>
+</head>
+<body>
+<div id="layout-banner">
+  <div id="layout-logo">
+    <div id="logo-image"></div>
+    <div id="logo-title">Yesod Book中文翻译</div>
+  </div>
+  <div id="logo-description">Yesod是一个Haskell写的web框架，用于开发类型安全、RESTful、高性能的web应用</div>
+</div>
+<div id="layout-menu-box">
+<div id="layout-menu">
+  <div><a href="index.html">目录</a></div>
+  <div id="seperator"></div>
+  <div><a href="/html/introduction.html">引言</a></div>
+  <div><a href="/html/haskell.html">Haskell</a></div>
+  <div><a href="/html/basics.html">基础</a></div>
+  <div><a href="/html/shakespearean-templates.html">莎氏模板</a></div>
+  <div><a href="/html/widgets.html">控件</a></div>
+  <div><a href="/html/yesod-typeclass.html">Yesod型类</a></div>
+  <div><a href="/html/routing-and-handlers.html">路由和处理函数</a></div>
+  <div><a href="/html/forms.html">表单</a></div>
+  <div><a href="/html/sessions.html">会话</a></div>
+  <div><a href="/html/persistent.html">Persistent</a></div>
+  <div><a href="/html/deploying-your-webapp.html">部署你的web应用</a></div>
+  <div id="seperator"></div>
+</div>
+</div>
+<div id="layout-content-box">
+<div id="layout-content">
+<div id="header">
+<div id="toc">
+  <div id="toctitle">本章目录</div>
+  <noscript><p><b>JavaScript must be enabled in your browser to display the table of contents.</b></p></noscript>
+</div>
+</div>
+<div id="content">
+<div class="sect1">
+<h2 id="_部署你的web应用">部署你的web应用</h2>
+<div class="sectionbody">
+<div class="paragraph"><p>我不知道别人怎样，但我自己是喜欢编程胜过做系统管理。但事实是，最终，你需要将你
+的应用放到服务器上，而且很有可能你会是那个搭建它的人。</p></div>
+<div class="paragraph"><p>在Haskell web社区有一些前景不错的项目在努力让部署变得更容易。未来，我们甚至可
+能有这样的服务，它可以让你只用一条命令就完成应用部署。</p></div>
+<div class="paragraph"><p>但我们还没到那一步。即使我们到了，这样的解决方案也不会对每个人都适用。本章讲述
+几种不同的部署方案，并对不同情况下应该选择什么方案提供一些一般性建议。</p></div>
+<div class="admonitionblock">
+<table><tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">虽然本章的内容不依赖于Yesod的特定版本，但因为最新的一些发展，如FP
+Complete的应用服务器以及Keter等，我不认为本章的所有建议都是准确的。本章大部分
+内容没有改动，但我可能会在接下来几个月再次更新它。(2013年6月23日)</td>
+</tr></table>
+</div>
+<div class="sect2">
+<h3 id="_编译">编译</h3>
+<div class="paragraph"><p>首先：你怎么构建(build)你的生产环境应用呢？如果你使用的是脚手架站点，只要运行
+<span class="monospaced">cabal build</span>即可。同时我建议构建前先做一些清理工作，以保证没有任何缓存信息
+。因此一个简单的构建组合命令是：</p></div>
+<div class="listingblock">
+<div class="content monospaced">
+<pre>cabal clean &amp;&amp; cabal configure &amp;&amp; cabal build</pre>
+</div></div>
+</div>
+<div class="sect2">
+<h3 id="_需要部署的文件">需要部署的文件</h3>
+<div class="paragraph"><p>如果是一个脚手架应用，基本上有三组文件需要部署：</p></div>
+<div class="olist arabic"><ol class="arabic">
+<li>
+<p>
+你的可执行文件。
+</p>
+</li>
+<li>
+<p>
+配置文件夹。
+</p>
+</li>
+<li>
+<p>
+静态文件夹。
+</p>
+</li>
+</ol></div>
+<div class="paragraph"><p>其它文件都会被编译进可执行文件，比如莎氏模板文件。</p></div>
+<div class="paragraph"><p>然而有一点是需要注意的：就是<span class="monospaced">config/client_session_key.aes</span>文件。这个文件包
+含了服务器端用来加密客户端会话cookie的密钥。如果没有这个文件，Yesod会自动生成
+一个。在实践中这意味着，如果你在部署时没有包含这个文件，重新部署完以后所有用户
+都需要重新登录。如果你遵循上面的建议，在部署时包含整个<span class="monospaced">config</span>文件夹，这个问
+题能得到部分解决。</p></div>
+<div class="paragraph"><p>另一半的解决方案是要保证你一旦生成了<span class="monospaced">config/client_session_key.aes</span>文件，以
+后在部署都使用同一个。要保证这点最简单的办法是将其加入你的版本控制中。然而，如
+果你的软件库是开源的，这样会很危险：任何能访问你软件库的人都能够伪造登录身份！</p></div>
+<div class="paragraph"><p>这里描述的问题本质上是系统管理范畴的，而不是程序开发范畴的。Yesod没有内置的方
+法用来安全存放客户端会话密钥。如果你有一个开源软件库，且无法信任所有能够访问你
+软件库源代码的人，那就应该想出一个安全存储客户端会话密钥的方案。</p></div>
+</div>
+<div class="sect2">
+<h3 id="_warp服务器">Warp服务器</h3>
+<div class="paragraph"><p>正如我们之前提过的，Yesod构建于Web应用接口(WAI: Web Application Interface)之上
+，因此能够运行在任何WAI后端上。本章成文之时，有以下后端可选：</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+Warp
+</p>
+</li>
+<li>
+<p>
+FastCGI
+</p>
+</li>
+<li>
+<p>
+SCGI
+</p>
+</li>
+<li>
+<p>
+CGI
+</p>
+</li>
+<li>
+<p>
+Webkit
+</p>
+</li>
+<li>
+<p>
+Yesod开发服务器
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>最后两种不适合在生产环境部署。其它四种理论上都可以在生产环境使用。在实践中，
+CGI后端很可能会非常低效，因为每个连接都需要产生(spawn)一个新的进程。SCGI没有得
+到像Warp(通过反向代理)和FastCGI那么好的支持。</p></div>
+<div class="paragraph"><p>因此，在剩下的两种选项里，强烈推荐Warp，理由是：</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+速度更快。
+</p>
+</li>
+<li>
+<p>
+与FastCGI一样，它可以使用反向HTTP代理运行在如Nginx一类的前端服务器(frontend
+  server)之后。
+</p>
+</li>
+<li>
+<p>
+此外，它本身就是一个功能完备的服务器，因此可以不用前端服务器单独使用。
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>所以剩下最后一个问题是：Warp应该单独使用，还是通过反向代理在前端服务器后使用？
+对于大多数应用场景，我推荐第二种，因为：</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+Warp虽然很快，但它是作为一个应用服务器优化的，而不是作为静态文件服务器。
+</p>
+</li>
+<li>
+<p>
+使用Nginx，你可以配置虚拟主机来从单独的域名托管静态内容。(Warp也可以做到这一
+　点，但配置起来会更复杂)。
+</p>
+</li>
+<li>
+<p>
+你可以将Nginx用作负载均衡或SSL代理。(虽然warp-tls也可以只用Warp运行一个https
+　站点。)
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>所以我的最终建议是：给Nginx配置一个到Warp的反向代理。</p></div>
+<div class="admonitionblock">
+<table><tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">Yesod社区里很多人在这点上与我有分歧。他们认为单独使用Warp，跳过Nginx那一
+步是更好的选择，因为性能得到提升且复杂性下降。你可以任意使用其中一种，它们都是
+完全合理的。</td>
+</tr></table>
+</div>
+<div class="sect3">
+<h4 id="_配置">配置</h4>
+<div class="paragraph"><p>通常，Nginx会侦听80端口，Yesod/Warp会侦听非特权端口(假设是4321)。你需要提供一
+个nginx.conf文件，比如：</p></div>
+<div class="listingblock">
+<div class="content monospaced">
+<pre>daemon off; # 让nginx在前台运行，方便监控状态
+events {
+    worker_connections 4096;
+}
+
+http {
+    server {
+        listen 80; # Nginx侦听的端口
+        server_name www.myserver.com;
+        location / {
+            proxy_pass http://127.0.0.1:4321; # 反向代理至你的Yesod应用
+        }
+    }
+}</pre>
+</div></div>
+<div class="paragraph"><p>你想添加多少个server块都可以。一个常见的修改是确保用户总是以www域名前缀访问你
+的网站，从而保证了使用经典URL的RESTful原则。(反过来要总是去掉www前缀也很容易，
+只要确保nginx配置文件及站点的approot都配置正确即可。)在这种情况下，我们可以增
+加下面的块：</p></div>
+<div class="listingblock">
+<div class="content monospaced">
+<pre>server {
+    listen 80;
+    server_name myserver.com;
+    rewrite ^/(.*) http://www.myserver.com/$1 permanent;
+}</pre>
+</div></div>
+<div class="paragraph"><p>强烈建议的一项优化是从单独的域名托管静态文件，从而绕过cookie的传输开销。假设我们
+的静态文件都存放在站点目录的<span class="monospaced">static</span>文件夹内，而站点目录位于
+<span class="monospaced">/home/michael/sites/mysite</span>，配置文件需要写成这样：</p></div>
+<div class="listingblock">
+<div class="content monospaced">
+<pre>server {
+    listen 80;
+    server_name static.myserver.com;
+    root /home/michael/sites/mysite/static;
+    # 因为yesod-static会将文件内容的哈希值追加为静态文件的请求参数，
+    # 我们可以将过期时间设置为很久以后，而不用担心用户会看到过时的内容。
+    expires max;
+}</pre>
+</div></div>
+<div class="paragraph"><p>为了让它能工作，你的站点必须正确的将静态URL重写到这个域名。脚手架站点通过
+<span class="monospaced">Settings.staticRoot</span>和<span class="monospaced">urlRenderOverride</span>函数让这件事很容易。然而，如果你
+只想要nginx提供更快的静态文件托管，而不使用单独的域名，你可以将配置文件写成这
+样：</p></div>
+<div class="listingblock">
+<div class="content monospaced">
+<pre>server {
+    listen 80; # Nginx侦听端口
+    server_name www.myserver.com;
+    location / {
+        proxy_pass http://127.0.0.1:4321; # 反向代理至你的Yesod应用
+    }
+    location /static {
+        root /home/michael/sites/mysite; # 注意这里**不用**写/static
+        expires max;
+    }
+}</pre>
+</div></div>
+</div>
+<div class="sect3">
+<h4 id="_服务器进程">服务器进程</h4>
+<div class="paragraph"><p>很多人对Apache/mod_php或Lighttpd/FastCGI那样的配置很熟悉，这些服务器会自动产生
+web应用的进程。对于nginx，不管是用反向代理还是FastCGI，都不是这样：你需要自己
+负责去运行进程。我强烈建议使用一个监控程序，它能够在你的程序崩溃时自动帮你重启
+。有很多好工具可选，比如angel或daemontools。</p></div>
+<div class="paragraph"><p>作为一个具体的例子，下面是一个Upstart配置文件。该文件必须存成
+<span class="monospaced">/etc/init/mysite.conf</span>：</p></div>
+<div class="listingblock">
+<div class="content monospaced">
+<pre>description "My awesome Yesod application"
+start on runlevel [2345];
+stop on runlevel [!2345];
+respawn
+chdir /home/michael/sites/mysite
+exec /home/michael/sites/mysite/dist/build/mysite/mysite</pre>
+</div></div>
+<div class="paragraph"><p>一旦有这个文件，启动你的应用只需要用<span class="monospaced">sudo start mysite</span>命令。</p></div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_fastcgi">FastCGI</h3>
+<div class="paragraph"><p>有些人可能更喜欢在部署时用FastCGI。这种情况下，你会需要用到额外的工具。FastCGI
+的工作方式是通过文件描述符(file descriptor)来接收新的连接。C语言库假设这个文件
+描述符是0(标准输入)，因此你需要用spawn-fcgi程序将你应用的标准输入绑定到正确的
+套接字(socket)上。</p></div>
+<div class="paragraph"><p>用Unix的命名套接字(named socket)会比绑定端口号更方便，特别是在一台服务器托管多
+个应用的情况下。一个加载你的应用的脚本可以这样写：</p></div>
+<div class="listingblock">
+<div class="content monospaced">
+<pre>spawn-fcgi \
+    -d /home/michael/sites/mysite \
+    -s /tmp/mysite.socket \
+    -n \
+    -M 511 \
+    -u michael \
+    -- /home/michael/sites/mysite/dist/build/mysite-fastcgi/mysite-fastcgi</pre>
+</div></div>
+<div class="paragraph"><p>你还需要将你的前端服务器配置成能通过FastCGI与你的应用通信。在Nginx中这很容易：</p></div>
+<div class="listingblock">
+<div class="content monospaced">
+<pre>server {
+    listen 80;
+    server_name www.myserver.com;
+    location / {
+        fastcgi_pass unix:/tmp/mysite.socket;
+    }
+}</pre>
+</div></div>
+<div class="paragraph"><p>这些看起来应该都很熟悉。最后一个技巧是，在Nginx中，你需要手动指定所有的FastCGI
+变量。建议将它们保存在单独的文件中(比如fastcgi.conf)，然后用<span class="monospaced">include
+fastcgi.conf;</span>加到http块的末尾。要与WAI配合工作，文件内容应该是：</p></div>
+<div class="listingblock">
+<div class="content monospaced">
+<pre>fastcgi_param  QUERY_STRING       $query_string;
+fastcgi_param  REQUEST_METHOD     $request_method;
+fastcgi_param  CONTENT_TYPE       $content_type;
+fastcgi_param  CONTENT_LENGTH     $content_length;
+fastcgi_param  PATH_INFO          $fastcgi_script_name;
+fastcgi_param  SERVER_PROTOCOL    $server_protocol;
+fastcgi_param  GATEWAY_INTERFACE  CGI/1.1;
+fastcgi_param  SERVER_SOFTWARE    nginx/$nginx_version;
+fastcgi_param  REMOTE_ADDR        $remote_addr;
+fastcgi_param  SERVER_ADDR        $server_addr;
+fastcgi_param  SERVER_PORT        $server_port;
+fastcgi_param  SERVER_NAME        $server_name;</pre>
+</div></div>
+</div>
+<div class="sect2">
+<h3 id="_桌面">桌面</h3>
+<div class="paragraph"><p>另一个很棒的(nifty)后端是wai-handler-webkit。这个后端将Warp与QtWebkit结合来创
+建一个用户可以双击运行的程序。是给你的应用提供离线版本的好方法。</p></div>
+<div class="paragraph"><p>Yesod很好的一点是你所有的模板都会编译进可执行文件，因此不需要与程序一起分发。
+不过，静态文件还是要分发。</p></div>
+<div class="admonitionblock">
+<table><tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">实际上也支持将静态文件直接嵌入可执行文件，详情查阅yesod-static文档。</td>
+</tr></table>
+</div>
+<div class="paragraph"><p>一种类似的方法是用wai-handler-launch，而不用QtWebkit库。它会启动Warp服务器然后
+打开用户的默认浏览器。这里还有个小花招：为了知道用户还在使用网站，
+<span class="monospaced">wai-handler-launch</span>给每个HTML页面插入一段用Javascript写的“ping”代码。如果
+<span class="monospaced">wai-handler-launch</span>在两分钟内没收到ping，它就会关闭。</p></div>
+</div>
+<div class="sect2">
+<h3 id="_在apache上运行cgi">在Apache上运行CGI</h3>
+<div class="paragraph"><p>CGI和FastCGI在Apache上几乎是一样的，因此配置文件可以直接拿来用。你基本上只要完
+成两件事：</p></div>
+<div class="olist arabic"><ol class="arabic">
+<li>
+<p>
+让服务器用(Fast)CGI托管你的文件。
+</p>
+</li>
+<li>
+<p>
+将你网站的所有请求重写至(Fast)CGI可执行文件。
+</p>
+</li>
+</ol></div>
+<div class="paragraph"><p>下面是一个托管博客程序的配置文件，可执行文件名为“bloggy.cgi”，位于document根目
+录的“blog”子文件夹里。该应用位于<span class="monospaced">/f5/snoyman/public/blog</span>。</p></div>
+<div class="listingblock">
+<div class="content monospaced">
+<pre>Options +ExecCGI
+AddHandler cgi-script .cgi
+Options +FollowSymlinks
+
+RewriteEngine On
+RewriteRule ^/f5/snoyman/public/blog$ /blog/ [R=301,S=1]
+RewriteCond $1 !^bloggy.cgi
+RewriteCond $1 !^static/
+RewriteRule ^(.*) bloggy.cgi/$1 [L]</pre>
+</div></div>
+<div class="paragraph"><p>第一条RewriteRule是为了处理子文件夹。特别是，它将<span class="monospaced">/blog</span>的请求重定向到
+<span class="monospaced">/blog/</span>。第一条RewriteCond防止直接请求可执行文件，第二条允许Apache托管静态
+文件，最后一行是实际上的重写(请求)。</p></div>
+</div>
+<div class="sect2">
+<h3 id="_lightppd上的fastcgi">lightppd上的FastCGI</h3>
+<div class="paragraph"><p>在这个例子中，我没有涉及一些基本的FastCGI设置，比如mime类型。在生产环境我还有
+一个更复杂的配置文件，会在请求路径缺少“www.”前缀时自动加上，并从单独的域名托管
+静态文件。然而，这个例子可以说明基本的情况。</p></div>
+<div class="paragraph"><p>这里，“/home/michael/fastcgi”是fastcgi应用。目标是将所有请求重写为以“/app”开头
+，然后所有以“/app”开头的请求，都会经过FastCGI可执行文件。</p></div>
+<div class="listingblock">
+<div class="content monospaced">
+<pre>server.port = 3000
+server.document-root = "/home/michael"
+server.modules = ("mod_fastcgi", "mod_rewrite")
+
+url.rewrite-once = (
+  "(.*)" =&gt; "/app/$1"
+)
+
+fastcgi.server = (
+    "/app" =&gt; ((
+        "socket" =&gt; "/tmp/test.fastcgi.socket",
+        "check-local" =&gt; "disable",
+        "bin-path" =&gt; "/home/michael/fastcgi", # full path to executable
+        "min-procs" =&gt; 1,
+        "max-procs" =&gt; 30,
+        "idle-timeout" =&gt; 30
+    ))
+)</pre>
+</div></div>
+</div>
+<div class="sect2">
+<h3 id="_lighttpd上的cgi">lighttpd上的CGI</h3>
+<div class="paragraph"><p>这与FastCGI的版本基本一样，但告诉lighttpd要运行以“.cgi”结尾的CGI可执行文件。这
+个例子中，可执行文件位于“/home/michael/myapp.cgi”。</p></div>
+<div class="listingblock">
+<div class="content monospaced">
+<pre>server.port = 3000
+server.document-root = "/home/michael"
+server.modules = ("mod_cgi", "mod_rewrite")
+
+url.rewrite-once = (
+    "(.*)" =&gt; "/myapp.cgi/$1"
+)
+
+cgi.assign = (".cgi" =&gt; "")</pre>
+</div></div>
+</div>
+</div>
+</div>
+</div>
+<div id="footnotes"><hr /></div>
+<div id="footer">
+<div id="footer-text">
+Last updated 2014-01-18 21:50:48 CST <br/>
+本站全部内容以MIT和Creative Commons 4.0许可证发布。详情请看<a href="https://raw.github.com/rnons/yesodbook-zh/master/LICENSE">许可证文件</a>。
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>

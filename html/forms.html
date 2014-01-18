@@ -1,0 +1,1094 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+    "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta name="generator" content="AsciiDoc 8.6.8" />
+<title></title>
+<link rel="stylesheet" href="/static/asciidoc.css" type="text/css" />
+<link rel="stylesheet" href="/static/layout.css" type="text/css" />
+<script type="text/javascript" src="/static/asciidoc.js"></script>
+<script type="text/javascript">
+/*<![CDATA[*/
+asciidoc.install(2);
+/*]]>*/
+</script>
+</head>
+<body>
+<div id="layout-banner">
+  <div id="layout-logo">
+    <div id="logo-image"></div>
+    <div id="logo-title">Yesod Book中文翻译</div>
+  </div>
+  <div id="logo-description">Yesod是一个Haskell写的web框架，用于开发类型安全、RESTful、高性能的web应用</div>
+</div>
+<div id="layout-menu-box">
+<div id="layout-menu">
+  <div><a href="index.html">目录</a></div>
+  <div id="seperator"></div>
+  <div><a href="/html/introduction.html">引言</a></div>
+  <div><a href="/html/haskell.html">Haskell</a></div>
+  <div><a href="/html/basics.html">基础</a></div>
+  <div><a href="/html/shakespearean-templates.html">莎氏模板</a></div>
+  <div><a href="/html/widgets.html">控件</a></div>
+  <div><a href="/html/yesod-typeclass.html">Yesod型类</a></div>
+  <div><a href="/html/routing-and-handlers.html">路由和处理函数</a></div>
+  <div><a href="/html/forms.html">表单</a></div>
+  <div><a href="/html/sessions.html">会话</a></div>
+  <div><a href="/html/persistent.html">Persistent</a></div>
+  <div><a href="/html/deploying-your-webapp.html">部署你的web应用</a></div>
+  <div id="seperator"></div>
+</div>
+</div>
+<div id="layout-content-box">
+<div id="layout-content">
+<div id="header">
+<div id="toc">
+  <div id="toctitle">本章目录</div>
+  <noscript><p><b>JavaScript must be enabled in your browser to display the table of contents.</b></p></noscript>
+</div>
+</div>
+<div id="content">
+<div class="sect1">
+<h2 id="_表单">表单</h2>
+<div class="sectionbody">
+<div class="paragraph"><p>我在前面已经提到过边界问题：每当有数据进入或离开应用，都需要进行校验。可能最困
+难的地方就是表单。用代码来做表单是很复杂的；在理想的世界里，我们希望一个方案能
+够解决以下问题：</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+保证数据是有效的。
+</p>
+</li>
+<li>
+<p>
+将表单中的字符串数据编组(marshal)为Haskell数据类型。
+</p>
+</li>
+<li>
+<p>
+生成用来显示表单的HTML代码。
+</p>
+</li>
+<li>
+<p>
+生成用户端数据验证的Javascript代码，并提供更友好的控件，比如日期选择控件。
+</p>
+</li>
+<li>
+<p>
+把简单的表单组合成更复杂的表单。
+</p>
+</li>
+<li>
+<p>
+自动给表单中的域(field)分配名字，并保证名字唯一。
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>yesod-form包以简单、声明式的API提供了所有这些功能。它构建于Yesod的控件之上以简
+化了定义表单样式的过程，并在适当时候应用Javascript。与Yesod其它部分一样，它使
+用Haskell的类型系统来保证表单各部分正确运行。</p></div>
+<div class="sect2">
+<h3 id="_概要">概要</h3>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE MultiParamTypeClasses #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE OverloadedStrings     #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE QuasiQuotes           #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TemplateHaskell       #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TypeFamilies          #-}</span></span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           Control<span style="color: #990000">.</span><span style="color: #009900">Applicative</span> <span style="color: #990000">((&lt;$&gt;),</span> <span style="color: #990000">(&lt;*&gt;))</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           Data<span style="color: #990000">.</span><span style="color: #009900">Text</span>           <span style="color: #990000">(</span><span style="color: #009900">Text</span><span style="color: #990000">)</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           Data<span style="color: #990000">.</span><span style="color: #009900">Time</span>           <span style="color: #990000">(</span><span style="color: #009900">Day</span><span style="color: #990000">)</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           <span style="color: #009900">Yesod</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           Yesod<span style="color: #990000">.</span>Form<span style="color: #990000">.</span><span style="color: #009900">Jquery</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">App</span> <span style="color: #990000">=</span> <span style="color: #009900">App</span>
+
+mkYesod <span style="color: #FF0000">"App"</span> <span style="color: #990000">[</span>parseRoutes<span style="color: #990000">|</span>
+<span style="color: #990000">/</span> <span style="color: #009900">HomeR</span> <span style="color: #009900">GET</span>
+<span style="color: #990000">/</span>person <span style="color: #009900">PersonR</span> <span style="color: #009900">POST</span>
+<span style="color: #990000">|]</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">Yesod</span> <span style="color: #009900">App</span>
+
+<span style="font-style: italic"><span style="color: #9A1900">-- 告诉我们的应用使用标准的英语消息。</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">-- 如果你需要i18n支持，可以提供一个翻译函数。</span></span>
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">RenderMessage</span> <span style="color: #009900">App</span> <span style="color: #009900">FormMessage</span> <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    renderMessage <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="color: #990000">=</span> defaultFormMessage
+
+<span style="font-style: italic"><span style="color: #9A1900">-- 指定jQuery库的路径。这里我们用的默认值，它指向Google CDN。</span></span>
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">YesodJquery</span> <span style="color: #009900">App</span>
+
+<span style="font-style: italic"><span style="color: #9A1900">-- 我们希望通过表单接收的数据类型</span></span>
+<span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">Person</span> <span style="color: #990000">=</span> <span style="color: #009900">Person</span>
+    <span style="color: #990000">{</span> personName          <span style="color: #990000">::</span> <span style="color: #009900">Text</span>
+    <span style="color: #990000">,</span> personBirthday      <span style="color: #990000">::</span> <span style="color: #009900">Day</span>
+    <span style="color: #990000">,</span> personFavoriteColor <span style="color: #990000">::</span> <span style="color: #009900">Maybe</span> <span style="color: #009900">Text</span>
+    <span style="color: #990000">,</span> personEmail         <span style="color: #990000">::</span> <span style="color: #009900">Text</span>
+    <span style="color: #990000">,</span> personWebsite       <span style="color: #990000">::</span> <span style="color: #009900">Maybe</span> <span style="color: #009900">Text</span>
+    <span style="color: #990000">}</span>
+  <span style="font-weight: bold"><span style="color: #0000FF">deriving</span></span> <span style="color: #009900">Show</span>
+
+<span style="font-style: italic"><span style="color: #9A1900">-- 声明表单。它的类型标识有点吓人，下面是一个概况：</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">--</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">-- * Html参数用来编码额外的信息。</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">-- 下面讲到runFormGet和runFormPost时会有详细解释。</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">--</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">-- * 我们的Handler是底层monad，说明表单是在哪个站点中运行。</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">--</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">-- * FormResult可以有三种情况：FormMissing(没有提交数据)，</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">-- FormFailure(无效数据)和FormSuccess。</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">--</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">-- * Widget是放置到网页上的可视控件。</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">--</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">-- 注意，脚手架站点提供了一个方便的类型别名Form，这样我们的类型标识可以写成：</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">--</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">-- &gt; personForm :: Form Person</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">--</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">-- 作为我们学习的目的，看看完整的版本也是好的。</span></span>
+personForm <span style="color: #990000">::</span> <span style="color: #009900">Html</span> <span style="color: #990000">-&gt;</span> <span style="color: #009900">MForm</span> <span style="color: #009900">Handler</span> <span style="color: #990000">(</span><span style="color: #009900">FormResult</span> <span style="color: #009900">Person</span><span style="color: #990000">,</span> <span style="color: #009900">Widget</span><span style="color: #990000">)</span>
+personForm <span style="color: #990000">=</span> renderDivs <span style="color: #990000">$</span> <span style="color: #009900">Person</span>
+    <span style="color: #990000">&lt;$&gt;</span> areq textField <span style="color: #FF0000">"Name"</span> <span style="color: #009900">Nothing</span>
+    <span style="color: #990000">&lt;*&gt;</span> areq <span style="color: #990000">(</span>jqueryDayField def
+        <span style="color: #990000">{</span> jdsChangeYear <span style="color: #990000">=</span> <span style="color: #009900">True</span> <span style="font-style: italic"><span style="color: #9A1900">-- give a year dropdown</span></span>
+        <span style="color: #990000">,</span> jdsYearRange <span style="color: #990000">=</span> <span style="color: #FF0000">"1900:-5"</span> <span style="font-style: italic"><span style="color: #9A1900">-- 1900 till five years ago</span></span>
+        <span style="color: #990000">})</span> <span style="color: #FF0000">"Birthday"</span> <span style="color: #009900">Nothing</span>
+    <span style="color: #990000">&lt;*&gt;</span> aopt textField <span style="color: #FF0000">"Favorite color"</span> <span style="color: #009900">Nothing</span>
+    <span style="color: #990000">&lt;*&gt;</span> areq emailField <span style="color: #FF0000">"Email address"</span> <span style="color: #009900">Nothing</span>
+    <span style="color: #990000">&lt;*&gt;</span> aopt urlField <span style="color: #FF0000">"Website"</span> <span style="color: #009900">Nothing</span>
+
+<span style="font-style: italic"><span style="color: #9A1900">-- GET方法对应的处理函数用来显示表单</span></span>
+getHomeR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+getHomeR <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+    <span style="font-style: italic"><span style="color: #9A1900">-- Generate the form to be displayed</span></span>
+    <span style="color: #990000">(</span>widget<span style="color: #990000">,</span> enctype<span style="color: #990000">)</span> <span style="color: #990000">&lt;-</span> generateFormPost personForm
+    defaultLayout
+        <span style="color: #990000">[</span>whamlet<span style="color: #990000">|</span>
+            <span style="color: #990000">&lt;</span>p<span style="color: #990000">&gt;</span>
+                <span style="color: #009900">The</span> widget generated contains only the contents
+                <span style="font-weight: bold"><span style="color: #0000FF">of</span></span> the form<span style="color: #990000">,</span> not the form tag itself<span style="color: #990000">.</span> So<span style="color: #990000">...</span>
+            <span style="color: #990000">&lt;</span>form method<span style="color: #990000">=</span>post action<span style="color: #990000">=@{</span><span style="color: #009900">PersonR</span><span style="color: #990000">}</span> enctype<span style="color: #990000">=#{</span>enctype<span style="color: #990000">}&gt;</span>
+                <span style="color: #990000">^{</span>widget<span style="color: #990000">}</span>
+                <span style="color: #990000">&lt;</span>p<span style="color: #990000">&gt;</span><span style="color: #009900">It</span> also doesn't include the submit button<span style="color: #990000">.</span>
+                <span style="color: #990000">&lt;</span>button<span style="color: #990000">&gt;</span><span style="color: #009900">Submit</span>
+        <span style="color: #990000">|]</span>
+
+<span style="font-style: italic"><span style="color: #9A1900">-- POST方法对应的处理函数对提交的表单进行处理。如果成功，则显示解析出的数据。</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">-- 否则，重新显示表单并附带错误消息。</span></span>
+postPersonR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+postPersonR <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+    <span style="color: #990000">((</span>result<span style="color: #990000">,</span> widget<span style="color: #990000">),</span> enctype<span style="color: #990000">)</span> <span style="color: #990000">&lt;-</span> runFormPost personForm
+    <span style="font-weight: bold"><span style="color: #0000FF">case</span></span> result <span style="font-weight: bold"><span style="color: #0000FF">of</span></span>
+        <span style="color: #009900">FormSuccess</span> person <span style="color: #990000">-&gt;</span> defaultLayout <span style="color: #990000">[</span>whamlet<span style="color: #990000">|&lt;</span>p<span style="color: #990000">&gt;#{</span>show person<span style="color: #990000">}|]</span>
+        <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="color: #990000">-&gt;</span> defaultLayout
+            <span style="color: #990000">[</span>whamlet<span style="color: #990000">|</span>
+                <span style="color: #990000">&lt;</span>p<span style="color: #990000">&gt;</span><span style="color: #009900">Invalid</span> input<span style="color: #990000">,</span> <span style="font-weight: bold"><span style="color: #0000FF">let</span></span>'s try again<span style="color: #990000">.</span>
+                <span style="color: #990000">&lt;</span>form method<span style="color: #990000">=</span>post action<span style="color: #990000">=@{</span><span style="color: #009900">PersonR</span><span style="color: #990000">}</span> enctype<span style="color: #990000">=#{</span>enctype<span style="color: #990000">}&gt;</span>
+                    <span style="color: #990000">^{</span>widget<span style="color: #990000">}</span>
+                    <span style="color: #990000">&lt;</span>button<span style="color: #990000">&gt;</span><span style="color: #009900">Submit</span>
+            <span style="color: #990000">|]</span>
+
+main <span style="color: #990000">::</span> <span style="color: #009900">IO</span> <span style="color: #990000">()</span>
+main <span style="color: #990000">=</span> warp <span style="color: #993399">3000</span> <span style="color: #009900">App</span></tt></pre></div></div>
+</div>
+<div class="sect2">
+<h3 id="_表单的种类">表单的种类</h3>
+<div class="paragraph"><p>在讲解类型前，我们应该先大致看一下有几种表单。共有三类：</p></div>
+<div class="dlist"><dl>
+<dt class="hdlist1">
+Applicative
+</dt>
+<dd>
+<p>
+这是最常用的表单(概要里的就是)。Applicative风格允许我们汇聚错误
+消息，并保持一种非常高层次、声明式的方法。(更多关于applicative代码的信息，参阅
+<a href="http://www.haskell.org/haskellwiki/Applicative_functor">Haskell维基</a>。)
+</p>
+</dd>
+<dt class="hdlist1">
+Monadic
+</dt>
+<dd>
+<p>
+是一种比applicative更强大的表单。虽然它能让你的表单更灵活，但同时会
+让代码更冗长。如果你创建的表单不是标准的两列风格，就需要用到monadic表单。
+</p>
+</dd>
+<dt class="hdlist1">
+Input
+</dt>
+<dd>
+<p>
+仅仅用来接收输入。不生成任何HTML来接收用户输入。在与已有表单交互时有用
+。
+</p>
+</dd>
+</dl></div>
+<div class="paragraph"><p>此外，还有一些变量在你构建表单和域时需要设置：</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+这个域是必需的还是可选的？
+</p>
+</li>
+<li>
+<p>
+这个表单要用GET还是POST方法提交？
+</p>
+</li>
+<li>
+<p>
+表单(域)有默认值吗？
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>一个总的目标是尽量减少域定义的数量，而是让它们能在尽量多的场景中使用。这样做的
+结果是每个域都要定义一些额外属性。在概要中，你可能注意到<span class="monospaced">areq</span>及其
+<span class="monospaced">Nothing</span>参数。我们在本章中当然会讲到为什么需要这些参数，不过暂时你只要知道
+通过显式的定义这些参数，就能在更多地方复用它们(比如<span class="monospaced">intField</span>)。</p></div>
+<div class="paragraph"><p>关于命名规则再说一句。每种表单都有一个字母前缀(A、M和I)，比如<span class="monospaced">MForm</span>。我们用
+req和opt来表示必须(required)和可选(optional)。综合这些，我们用<span class="monospaced">areq</span>来创建
+applicative表单中必须有值的域，用<span class="monospaced">iopt</span>表示input表单中可选的域。</p></div>
+</div>
+<div class="sect2">
+<h3 id="_类型">类型</h3>
+<div class="paragraph"><p>Yesod.Form.Types模块声明了不少类型。我们在这里不会涉及到全部类型，而是专注于最
+重要的一些。让我们从一些简单类型开始：</p></div>
+<div class="dlist"><dl>
+<dt class="hdlist1">
+Enctype
+</dt>
+<dd>
+<p>
+编码类型，构造函数是<span class="monospaced">UrlEncoded</span>或<span class="monospaced">Multipart</span>。这个数据类型是
+<span class="monospaced">ToHtml</span>的实例，因此你可以直接在Hamlet中使用它。
+</p>
+</dd>
+<dt class="hdlist1">
+FormResult
+</dt>
+<dd>
+<p>
+有三种情况：<span class="monospaced">FormMissing</span>如果没有提交数据，<span class="monospaced">FormFailure</span>如果
+解析表单时出错(比如必须有值的域没有值、无效内容)，<span class="monospaced">FormSuccess</span>如果一切正常
+。
+</p>
+</dd>
+<dt class="hdlist1">
+FormMessage
+</dt>
+<dd>
+<p>
+将所有能够生成的(错误)消息表示成一个数据类型。比如，
+<span class="monospaced">MsgInvalidInteger</span>用来表示所提供的文本值不是整数。通过让这个数据高度结构化
+，你可以提供任何你想要的呈现函数，就可以让你的应用支持多国语言(i18n)。
+</p>
+</dd>
+</dl></div>
+<div class="paragraph"><p>接下来我们有一些数据类型是用来定义单个域的。我们将域定义成一小块信息，比如一个
+数字、字符串或一个邮箱地址。域组合在一起就构成了表单。</p></div>
+<div class="dlist"><dl>
+<dt class="hdlist1">
+Field
+</dt>
+<dd>
+<p>
+定义了两个功能：怎么将用户输入解析成Haskell值，以及怎么创建显示给用户
+的控件。<span class="monospaced">yesod-form</span>包的Yesod.Form.Fields模块中定义了很多种域。
+</p>
+</dd>
+<dt class="hdlist1">
+FieldSettings
+</dt>
+<dd>
+<p>
+(定义)一个域的基本信息，比如显示的名字、可选的小提示(tooltip)
+，可能硬编码(hardcoded)的<span class="monospaced">id</span>和<span class="monospaced">name</span>属性。(如果没有提供<span class="monospaced">id</span>和<span class="monospaced">name</span>，
+Yesod会自动生成。)注意，<span class="monospaced">FieldSettings</span>是<span class="monospaced">IsString</span>的实例，因此当你需要提
+供一个<span class="monospaced">FieldSettings</span>值时，你实际上可以用字符串字面量。这也是概要中的例子采
+用的方法。
+</p>
+</dd>
+</dl></div>
+<div class="paragraph"><p>最后，我们讲讲最重要的部分：表单本身。共有三种表单：<span class="monospaced">MForm</span>用于monadic表单，
+<span class="monospaced">AForm</span>用于applicative表单，<span class="monospaced">FormInput</span>用于输入表单。<span class="monospaced">MForm</span>实际上是一个
+monad stack的别名，它提供了以下特性：</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+一个<span class="monospaced">Reader</span> monad读取用户提交的参数、基础数据类型及用户支持的语种。后两项
+  被用于呈现<span class="monospaced">FormMessage</span>以支持i18n(后面会详述)。
+</p>
+</li>
+<li>
+<p>
+一个<span class="monospaced">Writer</span> monad用于记录<span class="monospaced">Enctype</span>。表单数据总是会被<span class="monospaced">UrlEncoded</span>，除
+  非是文件输入域，它会强制使用multipart编码。
+</p>
+</li>
+<li>
+<p>
+一个<span class="monospaced">State</span> monad用于记录给表单域生成的名字及标识符。
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p><span class="monospaced">AForm</span>也大致类似。然而，有一些主要的差异：</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+它生成一列<span class="monospaced">FieldView</span>，用来记录要显示给用户的内容。这允许我们对表单显示的
+  内容有一个抽象的掌握，到最后再选一个适当的函数把它们布局到页面上。在概要中，
+  我们使用<span class="monospaced">renderDivs</span>，它会创建一组div标签。另外两种选择是
+  <span class="monospaced">renderBootstrap</span>和<span class="monospaced">renderTable</span>。
+</p>
+</li>
+<li>
+<p>
+它不是<span class="monospaced">Monad</span>的实例。<span class="monospaced">Applicative</span>的目标是使整个表单能够运行，并从每个域
+  得到尽可能多的信息，然后再创建运行结果。这在<span class="monospaced">Monad</span>中无法工作。
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p><span class="monospaced">FormInput</span>更简单：它或者返回一列错误消息，或都返回一个结果。</p></div>
+</div>
+<div class="sect2">
+<h3 id="_转换">转换</h3>
+<div class="paragraph"><p>&#8220;但是等一下，''你说。``你刚才说概要中使用的是applicative表单，但我敢肯定类型
+标识写的是<span class="monospaced">MForm</span>。难道它不是Monadic表单吗？&#8221; 确实是，我们最后生成的表单是
+monadic表单。但实际发生的是我们将applicative表单转换成了monadic表单。</p></div>
+<div class="paragraph"><p>再次说明，我们的目标是尽可能的复用代码，最小化API中函数的数量。Monadic表单比
+Applicative表单更强大，也更冗长，因此任何能用Applicative表单表示的内容应该也能
+用Monadic表单表示。有两个核心的函数帮助我们进行转换：<span class="monospaced">aformToForm</span>将任意
+applicative表单转为monadic表单，<span class="monospaced">formToAForm</span>将有些monadic表单转为
+applicative表单。</p></div>
+<div class="paragraph"><p>``但是<strong>再</strong>等一下，<em>'你坚持道。``我没有看到任何<span class="monospaced">aformToForm</span>！</em>'是的。
+<span class="monospaced">rednerDivs</span>函数会负责去调用<span class="monospaced">aformToForm</span>。</p></div>
+</div>
+<div class="sect2">
+<h3 id="_创建_span_class_monospaced_aform_span">创建<span class="monospaced">AForm</span></h3>
+<div class="paragraph"><p>现在我(希望)已经让你信服概要里我们确实用的是applicative表单，让我们看看并尝试
+去理解表单是怎么创建的。看一个简单的例子：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">Car</span> <span style="color: #990000">=</span> <span style="color: #009900">Car</span>
+    <span style="color: #990000">{</span> carModel <span style="color: #990000">::</span> <span style="color: #009900">Text</span>
+    <span style="color: #990000">,</span> carYear  <span style="color: #990000">::</span> <span style="color: #009900">Int</span>
+    <span style="color: #990000">}</span>
+  <span style="font-weight: bold"><span style="color: #0000FF">deriving</span></span> <span style="color: #009900">Show</span>
+
+carAForm <span style="color: #990000">::</span> <span style="color: #009900">AForm</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Car</span>
+carAForm <span style="color: #990000">=</span> <span style="color: #009900">Car</span>
+    <span style="color: #990000">&lt;$&gt;</span> areq textField <span style="color: #FF0000">"Model"</span> <span style="color: #009900">Nothing</span>
+    <span style="color: #990000">&lt;*&gt;</span> areq intField <span style="color: #FF0000">"Year"</span> <span style="color: #009900">Nothing</span>
+
+carForm <span style="color: #990000">::</span> <span style="color: #009900">Html</span> <span style="color: #990000">-&gt;</span> <span style="color: #009900">MForm</span> <span style="color: #009900">Handler</span> <span style="color: #990000">(</span><span style="color: #009900">FormResult</span> <span style="color: #009900">Car</span><span style="color: #990000">,</span> <span style="color: #009900">Widget</span><span style="color: #990000">)</span>
+carForm <span style="color: #990000">=</span> renderTable carAForm</tt></pre></div></div>
+<div class="paragraph"><p>这里，我们显式的区分了applicative和monadic表单。在<span class="monospaced">carAForm</span>的定义中，我们使
+用了<span class="monospaced">&lt;$&gt;</span>和<span class="monospaced">&lt;*&gt;</span>运算符。这应该不奇怪；它们几乎总是会在applicative风格的代
+码中用到。另外，<span class="monospaced">Car</span>数据类型的每一个字段对应一行。同样不奇怪的是，我们用
+<span class="monospaced">textField</span>来接收<span class="monospaced">Text</span>值，用<span class="monospaced">intField</span>来接收<span class="monospaced">Int</span>值。</p></div>
+<div class="paragraph"><p>让我们仔细看看<span class="monospaced">areq</span>函数。它的(简化了)的类型标识是<span class="monospaced">Field a &#8594; FieldSettings
+&#8594; Maybe a &#8594; AForm a</span>。第一个参数指明了这个域的数据类型，怎么解析它以及怎么
+呈现它。第二个参数<span class="monospaced">FieldSettings</span>，告诉我们这个域的标签(label)、提示、名字和
+ID。因为前面提到<span class="monospaced">FieldSettings</span>是<span class="monospaced">IsString</span>的实例，因此在这里用的是字符串
+字面量。</p></div>
+<div class="paragraph"><p>第三个参数<span class="monospaced">Maybe a</span>是怎么回事？它提供了可选的默认值。比如，如果我们想让表单
+填入“2007”作为默认的汽车生产年份，我们就可以用<span class="monospaced">areq intField "Year" (Just
+2007)</span>。我们甚至可以更进一步，用一个可选的参数来给整个表单提供默认值。</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt>carAForm <span style="color: #990000">::</span> <span style="color: #009900">Maybe</span> <span style="color: #009900">Car</span> <span style="color: #990000">-&gt;</span> <span style="color: #009900">AForm</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Car</span>
+carAForm mcar <span style="color: #990000">=</span> <span style="color: #009900">Car</span>
+    <span style="color: #990000">&lt;$&gt;</span> areq textField <span style="color: #FF0000">"Model"</span> <span style="color: #990000">(</span>carModel <span style="color: #990000">&lt;$&gt;</span> mcar<span style="color: #990000">)</span>
+    <span style="color: #990000">&lt;*&gt;</span> areq intField  <span style="color: #FF0000">"Year"</span>  <span style="color: #990000">(</span>carYear  <span style="color: #990000">&lt;$&gt;</span> mcar<span style="color: #990000">)</span></tt></pre></div></div>
+<div class="sect3">
+<h4 id="_可选域">可选域</h4>
+<div class="paragraph"><p>假设我们想创建一个可选域(比如汽车颜色)。我们只要用<span class="monospaced">aopt</span>函数就可以。</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt>carAForm <span style="color: #990000">::</span> <span style="color: #009900">AForm</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Car</span>
+carAForm <span style="color: #990000">=</span> <span style="color: #009900">Car</span>
+    <span style="color: #990000">&lt;$&gt;</span> areq textField <span style="color: #FF0000">"Model"</span> <span style="color: #009900">Nothing</span>
+    <span style="color: #990000">&lt;*&gt;</span> areq intField <span style="color: #FF0000">"Year"</span> <span style="color: #009900">Nothing</span>
+    <span style="color: #990000">&lt;*&gt;</span> aopt textField <span style="color: #FF0000">"Color"</span> <span style="color: #009900">Nothing</span></tt></pre></div></div>
+<div class="paragraph"><p>与必须域类似，最后一个参数是可选的默认值。然而，这样就有两层Maybe封装了。这实
+际上有点冗余，但对于用一个可选参数为表单提供默认值，代码写起来会更容易，比如下
+面这个例子。</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt>carAForm <span style="color: #990000">::</span> <span style="color: #009900">Maybe</span> <span style="color: #009900">Car</span> <span style="color: #990000">-&gt;</span> <span style="color: #009900">AForm</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Car</span>
+carAForm mcar <span style="color: #990000">=</span> <span style="color: #009900">Car</span>
+    <span style="color: #990000">&lt;$&gt;</span> areq textField <span style="color: #FF0000">"Model"</span> <span style="color: #990000">(</span>carModel <span style="color: #990000">&lt;$&gt;</span> mcar<span style="color: #990000">)</span>
+    <span style="color: #990000">&lt;*&gt;</span> areq intField  <span style="color: #FF0000">"Year"</span>  <span style="color: #990000">(</span>carYear  <span style="color: #990000">&lt;$&gt;</span> mcar<span style="color: #990000">)</span>
+    <span style="color: #990000">&lt;*&gt;</span> aopt textField <span style="color: #FF0000">"Color"</span> <span style="color: #990000">(</span>carColor <span style="color: #990000">&lt;$&gt;</span> mcar<span style="color: #990000">)</span>
+
+carForm <span style="color: #990000">::</span> <span style="color: #009900">Html</span> <span style="color: #990000">-&gt;</span> <span style="color: #009900">MForm</span> <span style="color: #009900">Handler</span> <span style="color: #990000">(</span><span style="color: #009900">FormResult</span> <span style="color: #009900">Car</span><span style="color: #990000">,</span> <span style="color: #009900">Widget</span><span style="color: #990000">)</span>
+carForm <span style="color: #990000">=</span> renderTable <span style="color: #990000">$</span> carAForm <span style="color: #990000">$</span> <span style="color: #009900">Just</span> <span style="color: #990000">$</span> <span style="color: #009900">Car</span> <span style="color: #FF0000">"Forte"</span> <span style="color: #993399">2010</span> <span style="color: #990000">$</span> <span style="color: #009900">Just</span> <span style="color: #FF0000">"gray"</span></tt></pre></div></div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_验证">验证</h3>
+<div class="paragraph"><p>我们怎么让表单只接受年份在1990以后的汽车呢？如果你记得，我们在上面说过
+<span class="monospaced">Field</span>本身包含了什么是有效输入的信息。所以我们只要新写一个<span class="monospaced">Field</span>就可以，
+对吗？嗯，其实有一点繁琐。倒不如，我们来改一个现有的例子：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt>carAForm <span style="color: #990000">::</span> <span style="color: #009900">Maybe</span> <span style="color: #009900">Car</span> <span style="color: #990000">-&gt;</span> <span style="color: #009900">AForm</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Car</span>
+carAForm mcar <span style="color: #990000">=</span> <span style="color: #009900">Car</span>
+    <span style="color: #990000">&lt;$&gt;</span> areq textField    <span style="color: #FF0000">"Model"</span> <span style="color: #990000">(</span>carModel <span style="color: #990000">&lt;$&gt;</span> mcar<span style="color: #990000">)</span>
+    <span style="color: #990000">&lt;*&gt;</span> areq carYearField <span style="color: #FF0000">"Year"</span>  <span style="color: #990000">(</span>carYear  <span style="color: #990000">&lt;$&gt;</span> mcar<span style="color: #990000">)</span>
+    <span style="color: #990000">&lt;*&gt;</span> aopt textField    <span style="color: #FF0000">"Color"</span> <span style="color: #990000">(</span>carColor <span style="color: #990000">&lt;$&gt;</span> mcar<span style="color: #990000">)</span>
+  <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    errorMessage <span style="color: #990000">::</span> <span style="color: #009900">Text</span>
+    errorMessage <span style="color: #990000">=</span> <span style="color: #FF0000">"Your car is too old, get a new one!"</span>
+
+    carYearField <span style="color: #990000">=</span> check validateYear intField
+
+    validateYear y
+        <span style="color: #990000">|</span> y <span style="color: #990000">&lt;</span> <span style="color: #993399">1990</span> <span style="color: #990000">=</span> <span style="color: #009900">Left</span> errorMessage
+        <span style="color: #990000">|</span> otherwise <span style="color: #990000">=</span> <span style="color: #009900">Right</span> y</tt></pre></div></div>
+<div class="paragraph"><p>这里的技巧是<span class="monospaced">check</span>函数。它接受一个函数(<span class="monospaced">validateYear</span>)传入，这个函数或者
+返回一个错误消息或者返回修改后的域值。在这个例子中，我们没有修改域值。通常也不
+会去修改。这样的检查很常见，所以我们有个快捷函数：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt>carYearField <span style="color: #990000">=</span> checkBool <span style="color: #990000">(&gt;=</span> <span style="color: #993399">1990</span><span style="color: #990000">)</span> errorMessage intField</tt></pre></div></div>
+<div class="paragraph"><p><span class="monospaced">checkBool</span>接受两个参数：一个必须满足的条件，以及条件不满足时显示的错误消息。</p></div>
+<div class="admonitionblock">
+<table><tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">你可能注意到<span class="monospaced">errorMessage</span>用了显式的类型标识。在使用了
+<span class="monospaced">OverloadedStrings</span>的情况下，需要这样做。为了支持i18n，消息可以是多种不同的
+数据类型，GHC没有办法确定你要使用的究竟是<span class="monospaced">IsString</span>的哪个实例。</td>
+</tr></table>
+</div>
+<div class="paragraph"><p>能够保证汽车年份不太老很好。但如果我们还想保证不是未来的年份呢？为了查询当前年
+份，我们需要执行<span class="monospaced">IO</span>操作。这种情况下，我们需要用<span class="monospaced">checkM</span>，它允许在校验代码
+中执行任意的操作：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt>    carYearField <span style="color: #990000">=</span> checkM inPast <span style="color: #990000">$</span> checkBool <span style="color: #990000">(&gt;=</span> <span style="color: #993399">1990</span><span style="color: #990000">)</span> errorMessage intField
+
+    inPast y <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+        thisYear <span style="color: #990000">&lt;-</span> liftIO getCurrentYear
+        return <span style="color: #990000">$</span> <span style="font-weight: bold"><span style="color: #0000FF">if</span></span> y <span style="color: #990000">&lt;=</span> thisYear
+            <span style="font-weight: bold"><span style="color: #0000FF">then</span></span> <span style="color: #009900">Right</span> y
+            <span style="font-weight: bold"><span style="color: #0000FF">else</span></span> <span style="color: #009900">Left</span> <span style="color: #990000">(</span><span style="color: #FF0000">"You have a time machine!"</span> <span style="color: #990000">::</span> <span style="color: #009900">Text</span><span style="color: #990000">)</span>
+
+getCurrentYear <span style="color: #990000">::</span> <span style="color: #009900">IO</span> <span style="color: #009900">Int</span>
+getCurrentYear <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+    now <span style="color: #990000">&lt;-</span> getCurrentTime
+    <span style="font-weight: bold"><span style="color: #0000FF">let</span></span> today <span style="color: #990000">=</span> utctDay now
+    <span style="font-weight: bold"><span style="color: #0000FF">let</span></span> <span style="color: #990000">(</span>year<span style="color: #990000">,</span> <span style="font-weight: bold"><span style="color: #0000FF">_</span></span><span style="color: #990000">,</span> <span style="font-weight: bold"><span style="color: #0000FF">_</span></span><span style="color: #990000">)</span> <span style="color: #990000">=</span> toGregorian today
+    return <span style="color: #990000">$</span> fromInteger year</tt></pre></div></div>
+<div class="paragraph"><p><span class="monospaced">inPast</span>函数返回一个在<span class="monospaced">Handler</span> monad中的<span class="monospaced">Either</span>值。我们用<span class="monospaced">liftIO
+getCurrentTime</span>来获取当前年份，然后与用户提供的年份进行比较。另外，注意我们怎
+么把多个检验函数串联起来。</p></div>
+<div class="admonitionblock">
+<table><tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">因为<span class="monospaced">checkM</span>验证函数运行在<span class="monospaced">Handler</span> monad中，所以它可以访问你在Yesod
+里通常能访问的大量内容。对于需要执行数据库操作的情况会特别有用，我们会在“
+Persistent”一章中讲解。</td>
+</tr></table>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_更复杂的域">更复杂的域</h3>
+<div class="paragraph"><p>我们的颜色输入框不错，但一点都不用户友好。我们真正想要的是一个下拉框。</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">Car</span> <span style="color: #990000">=</span> <span style="color: #009900">Car</span>
+    <span style="color: #990000">{</span> carModel <span style="color: #990000">::</span> <span style="color: #009900">Text</span>
+    <span style="color: #990000">,</span> carYear <span style="color: #990000">::</span> <span style="color: #009900">Int</span>
+    <span style="color: #990000">,</span> carColor <span style="color: #990000">::</span> <span style="color: #009900">Maybe</span> <span style="color: #009900">Color</span>
+    <span style="color: #990000">}</span>
+  <span style="font-weight: bold"><span style="color: #0000FF">deriving</span></span> <span style="color: #009900">Show</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">Color</span> <span style="color: #990000">=</span> <span style="color: #009900">Red</span> <span style="color: #990000">|</span> <span style="color: #009900">Blue</span> <span style="color: #990000">|</span> <span style="color: #009900">Gray</span> <span style="color: #990000">|</span> <span style="color: #009900">Black</span>
+    <span style="font-weight: bold"><span style="color: #0000FF">deriving</span></span> <span style="color: #990000">(</span><span style="color: #009900">Show</span><span style="color: #990000">,</span> <span style="color: #009900">Eq</span><span style="color: #990000">,</span> <span style="color: #009900">Enum</span><span style="color: #990000">,</span> <span style="color: #009900">Bounded</span><span style="color: #990000">)</span>
+
+carAForm <span style="color: #990000">::</span> <span style="color: #009900">Maybe</span> <span style="color: #009900">Car</span> <span style="color: #990000">-&gt;</span> <span style="color: #009900">AForm</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Car</span>
+carAForm mcar <span style="color: #990000">=</span> <span style="color: #009900">Car</span>
+    <span style="color: #990000">&lt;$&gt;</span> areq textField <span style="color: #FF0000">"Model"</span> <span style="color: #990000">(</span>carModel <span style="color: #990000">&lt;$&gt;</span> mcar<span style="color: #990000">)</span>
+    <span style="color: #990000">&lt;*&gt;</span> areq carYearField <span style="color: #FF0000">"Year"</span> <span style="color: #990000">(</span>carYear <span style="color: #990000">&lt;$&gt;</span> mcar<span style="color: #990000">)</span>
+    <span style="color: #990000">&lt;*&gt;</span> aopt <span style="color: #990000">(</span>selectFieldList colors<span style="color: #990000">)</span> <span style="color: #FF0000">"Color"</span> <span style="color: #990000">(</span>carColor <span style="color: #990000">&lt;$&gt;</span> mcar<span style="color: #990000">)</span>
+  <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    colors <span style="color: #990000">::</span> <span style="color: #990000">[(</span><span style="color: #009900">Text</span><span style="color: #990000">,</span> <span style="color: #009900">Color</span><span style="color: #990000">)]</span>
+    colors <span style="color: #990000">=</span> <span style="color: #990000">[(</span><span style="color: #FF0000">"Red"</span><span style="color: #990000">,</span> <span style="color: #009900">Red</span><span style="color: #990000">),</span> <span style="color: #990000">(</span><span style="color: #FF0000">"Blue"</span><span style="color: #990000">,</span> <span style="color: #009900">Blue</span><span style="color: #990000">),</span> <span style="color: #990000">(</span><span style="color: #FF0000">"Gray"</span><span style="color: #990000">,</span> <span style="color: #009900">Gray</span><span style="color: #990000">),</span> <span style="color: #990000">(</span><span style="color: #FF0000">"Black"</span><span style="color: #990000">,</span> <span style="color: #009900">Black</span><span style="color: #990000">)]</span></tt></pre></div></div>
+<div class="paragraph"><p><span class="monospaced">selectFieldList</span>接收一个二元组(pair)列表。二元组的第一项是显示在下拉框中的
+文本，第二项是实际的Haskell值。当然，上面的代码看下来有点重复；我们可以借助GHC
+为我们自动生成Color的Enum和Bounded实例，而得到同样的结果。</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt>colors <span style="color: #990000">=</span> map <span style="color: #990000">(</span>pack <span style="color: #990000">.</span> show <span style="color: #990000">&amp;&amp;&amp;</span> id<span style="color: #990000">)</span> <span style="color: #990000">[</span>minBound<span style="color: #990000">..</span>maxBound<span style="color: #990000">]</span></tt></pre></div></div>
+<div class="paragraph"><p><span class="monospaced">[minBound..maxBound]</span>给我们所有<span class="monospaced">Color</span>值的列表。然后我们用<span class="monospaced">map</span>和
+<span class="monospaced">&amp;&amp;&amp;</span>(即fan-out运算符)将它转为一列对。</p></div>
+<div class="paragraph"><p>有些人更喜欢单选按钮而不是下拉列表。幸运的是，只要修改一个词就可以。</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt>carAForm <span style="color: #990000">=</span> <span style="color: #009900">Car</span>
+    <span style="color: #990000">&lt;$&gt;</span> areq textField               <span style="color: #FF0000">"Model"</span> <span style="color: #009900">Nothing</span>
+    <span style="color: #990000">&lt;*&gt;</span> areq intField                <span style="color: #FF0000">"Year"</span>  <span style="color: #009900">Nothing</span>
+    <span style="color: #990000">&lt;*&gt;</span> aopt <span style="color: #990000">(</span>radioFieldList colors<span style="color: #990000">)</span> <span style="color: #FF0000">"Color"</span> <span style="color: #009900">Nothing</span></tt></pre></div></div>
+</div>
+<div class="sect2">
+<h3 id="_运行表单">运行表单</h3>
+<div class="paragraph"><p>或早或晚，我们会需要用我们漂亮的表单生成表单结果。有很多函数可以做到，每一个函
+数都有其自身的目的。我会逐一介绍它们，从最常用的开始。</p></div>
+<div class="dlist"><dl>
+<dt class="hdlist1">
+runFormPost
+</dt>
+<dd>
+<p>
+生成一个表单用于处理<span class="monospaced">POST</span>提交的参数。如果不是用<span class="monospaced">POST</span>方法提
+交的，它会返回<span class="monospaced">FormMissing</span>。它还会自动插入一个安全令牌作为隐藏的表单域，以
+防止<a href="http://en.wikipedia.org/wiki/Cross-site_request_forgery">跨站请求伪造
+(CSRF: cross-site request forgery)</a>攻击。
+</p>
+</dd>
+<dt class="hdlist1">
+runFormGet
+</dt>
+<dd>
+<p>
+<span class="monospaced">runFormPost</span>函数针对<span class="monospaced">GET</span>请求的版本。为了区分正常的<span class="monospaced">GET</span>页
+面加载与<span class="monospaced">GET</span>提交，它在表单中包含了<span class="monospaced">_hasdata</span>这个隐藏域。不同于runFormPost
+，它没有CSRF防御。
+</p>
+</dd>
+<dt class="hdlist1">
+runFormPostNoToken
+</dt>
+<dd>
+<p>
+与<span class="monospaced">runFormPost</span>一样，但不包括(或不需要)CSRF安全令牌。
+</p>
+</dd>
+<dt class="hdlist1">
+generateFormPost
+</dt>
+<dd>
+<p>
+不与已有<span class="monospaced">POST</span>参数绑定，假装它们不存在。如果你希望表单提
+交完后生成一个全新的表单，比如向导(wizard)里那样，这个函数会很有用。
+</p>
+</dd>
+<dt class="hdlist1">
+generateFormGet
+</dt>
+<dd>
+<p>
+与<span class="monospaced">generateFormPost</span>一样，但是针对<span class="monospaced">GET</span>请求。
+</p>
+</dd>
+</dl></div>
+<div class="paragraph"><p>前三个函数的返回值类型是<span class="monospaced">((FormResult a, Widget), Enctype)</span>。<span class="monospaced">Widget</span>包含
+了验证错误和之前提交的内容。</p></div>
+</div>
+<div class="sect2">
+<h3 id="_i18n">i18n</h3>
+<div class="paragraph"><p>本章多次提到i18n。这个话题会在它自己的章节有更详细的说明，但因为它对
+<span class="monospaced">yesod-form</span>有很大的影响，我想先给个简要介绍。Yesod中i18n的基本思想是用数据
+类型表示消息。每个站点都可以指定一种数据类型为<span class="monospaced">RenderMessage</span>的实例，它会基
+于用户接受的语种，呈现相应语种的消息。结果是，你需要注意一些事情：</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+每个Yesod站点自动将<span class="monospaced">Text</span>声明为<span class="monospaced">RenderMessage</span>的实例，因此你可以用普通的
+  字符串而不用担心i18n支持。然而，有时你可能还是需要使用显式的类型标识。
+</p>
+</li>
+<li>
+<p>
+<span class="monospaced">yesod-form</span>将所有的消息表示为<span class="monospaced">FormMessage</span>数据类型。因此，要使用
+  <span class="monospaced">yesod-form</span>，你需要有适当的<span class="monospaced">RenderMessage</span>实例。一个简单的默认为英语的例
+  子是：
+</p>
+</li>
+</ul></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">RenderMessage</span> <span style="color: #009900">App</span> <span style="color: #009900">FormMessage</span> <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    renderMessage <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="color: #990000">=</span> defaultFormMessage</tt></pre></div></div>
+<div class="paragraph"><p>这是脚手架站点中默认提供的。</p></div>
+</div>
+<div class="sect2">
+<h3 id="_monadic表单">Monadic表单</h3>
+<div class="paragraph"><p>很多时候，一个简单的表单布局就足够了，而applicative表单就擅长于此。然而有些时
+候，你会想要更加修改化的表单外观。</p></div>
+<div class="imageblock" id="monadic-x-4">
+<div class="content">
+<img src="../images/monadic-form.png" alt="../images/monadic-form.png">
+</div>
+<div class="title">Figure 1. 一种非标准的表单布局</div>
+</div>
+<div class="paragraph"><p>对于这种应用场景，很适合用monadic表单。虽然它们比applicative表单更冗长，但正是
+这样才让你能够完全的控制表单如何呈现。为了生成上图中的表单，我们需要写这样的代
+码。</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE MultiParamTypeClasses #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE OverloadedStrings     #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE QuasiQuotes           #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TemplateHaskell       #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TypeFamilies          #-}</span></span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           Control<span style="color: #990000">.</span><span style="color: #009900">Applicative</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           Data<span style="color: #990000">.</span><span style="color: #009900">Text</span>           <span style="color: #990000">(</span><span style="color: #009900">Text</span><span style="color: #990000">)</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           <span style="color: #009900">Yesod</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">App</span> <span style="color: #990000">=</span> <span style="color: #009900">App</span>
+
+mkYesod <span style="color: #FF0000">"App"</span> <span style="color: #990000">[</span>parseRoutes<span style="color: #990000">|</span>
+<span style="color: #990000">/</span> <span style="color: #009900">HomeR</span> <span style="color: #009900">GET</span>
+<span style="color: #990000">|]</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">Yesod</span> <span style="color: #009900">App</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">RenderMessage</span> <span style="color: #009900">App</span> <span style="color: #009900">FormMessage</span> <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    renderMessage <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="color: #990000">=</span> defaultFormMessage
+
+<span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">Person</span> <span style="color: #990000">=</span> <span style="color: #009900">Person</span>
+    <span style="color: #990000">{</span> personName <span style="color: #990000">::</span> <span style="color: #009900">Text</span>
+    <span style="color: #990000">,</span> personAge  <span style="color: #990000">::</span> <span style="color: #009900">Int</span>
+    <span style="color: #990000">}</span>
+    <span style="font-weight: bold"><span style="color: #0000FF">deriving</span></span> <span style="color: #009900">Show</span>
+
+personForm <span style="color: #990000">::</span> <span style="color: #009900">Html</span> <span style="color: #990000">-&gt;</span> <span style="color: #009900">MForm</span> <span style="color: #009900">Handler</span> <span style="color: #990000">(</span><span style="color: #009900">FormResult</span> <span style="color: #009900">Person</span><span style="color: #990000">,</span> <span style="color: #009900">Widget</span><span style="color: #990000">)</span>
+personForm extra <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+    <span style="color: #990000">(</span>nameRes<span style="color: #990000">,</span> nameView<span style="color: #990000">)</span> <span style="color: #990000">&lt;-</span> mreq textField <span style="color: #FF0000">"this is not used"</span> <span style="color: #009900">Nothing</span>
+    <span style="color: #990000">(</span>ageRes<span style="color: #990000">,</span> ageView<span style="color: #990000">)</span> <span style="color: #990000">&lt;-</span> mreq intField <span style="color: #FF0000">"neither is this"</span> <span style="color: #009900">Nothing</span>
+    <span style="font-weight: bold"><span style="color: #0000FF">let</span></span> personRes <span style="color: #990000">=</span> <span style="color: #009900">Person</span> <span style="color: #990000">&lt;$&gt;</span> nameRes <span style="color: #990000">&lt;*&gt;</span> ageRes
+    <span style="font-weight: bold"><span style="color: #0000FF">let</span></span> widget <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+            toWidget
+                <span style="color: #990000">[</span>lucius<span style="color: #990000">|</span>
+                    <span style="color: #990000">##{</span>fvId ageView<span style="color: #990000">}</span> <span style="color: #990000">{</span>
+                        width<span style="color: #990000">:</span> 3em<span style="color: #990000">;</span>
+                    <span style="color: #990000">}</span>
+                <span style="color: #990000">|]</span>
+            <span style="color: #990000">[</span>whamlet<span style="color: #990000">|</span>
+                <span style="color: #990000">#{</span>extra<span style="color: #990000">}</span>
+                <span style="color: #990000">&lt;</span>p<span style="color: #990000">&gt;</span>
+                    <span style="color: #009900">Hello</span><span style="color: #990000">,</span> my name is <span style="color: #990000">#</span>
+                    <span style="color: #990000">^{</span>fvInput nameView<span style="color: #990000">}</span>
+                    <span style="color: #990000">\</span> and <span style="color: #009900">I</span> am <span style="color: #990000">#</span>
+                    <span style="color: #990000">^{</span>fvInput ageView<span style="color: #990000">}</span>
+                    <span style="color: #990000">\</span> years old<span style="color: #990000">.</span> <span style="color: #990000">#</span>
+                    <span style="color: #990000">&lt;</span>input <span style="font-weight: bold"><span style="color: #0000FF">type</span></span><span style="color: #990000">=</span>submit value<span style="color: #990000">=</span><span style="color: #FF0000">"Introduce myself"</span><span style="color: #990000">&gt;</span>
+            <span style="color: #990000">|]</span>
+    return <span style="color: #990000">(</span>personRes<span style="color: #990000">,</span> widget<span style="color: #990000">)</span>
+
+getHomeR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+getHomeR <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+    <span style="color: #990000">((</span>res<span style="color: #990000">,</span> widget<span style="color: #990000">),</span> enctype<span style="color: #990000">)</span> <span style="color: #990000">&lt;-</span> runFormGet personForm
+    defaultLayout
+        <span style="color: #990000">[</span>whamlet<span style="color: #990000">|</span>
+            <span style="color: #990000">&lt;</span>p<span style="color: #990000">&gt;</span><span style="color: #009900">Result</span><span style="color: #990000">:</span> <span style="color: #990000">#{</span>show res<span style="color: #990000">}</span>
+            <span style="color: #990000">&lt;</span>form enctype<span style="color: #990000">=#{</span>enctype<span style="color: #990000">}&gt;</span>
+                <span style="color: #990000">^{</span>widget<span style="color: #990000">}</span>
+        <span style="color: #990000">|]</span>
+
+main <span style="color: #990000">::</span> <span style="color: #009900">IO</span> <span style="color: #990000">()</span>
+main <span style="color: #990000">=</span> warp <span style="color: #993399">3000</span> <span style="color: #009900">App</span></tt></pre></div></div>
+<div class="paragraph"><p>与applicative表单中的<span class="monospaced">areq</span>类似，我们在monadic表单中使用<span class="monospaced">mreq</span>。(是的，对
+于可选域用<span class="monospaced">mopt</span>函数。)但有一个显著的区别：<span class="monospaced">mreq</span>的返回值是一个二元组。不
+是(像applicative表单那样)隐去FieldView值并自动插入控件，在monadic表单中，我们
+可以随心所愿的插入表单域。</p></div>
+<div class="paragraph"><p><span class="monospaced">FieldView</span>包含很多信息。最重要的是<span class="monospaced">fvInput</span>，它是实际上的表单域。在这个例
+子中，我们还使用了<span class="monospaced">fvId</span>，它返回输入标签的HTML <span class="monospaced">id</span>属性。在上例中，我们用
+它来指定域的宽度。</p></div>
+<div class="paragraph"><p>你可能在想`&#8216;this is not used&#8217;<em>和``neither is this</em>'这两个值是怎么回事。
+<span class="monospaced">mreq</span>接受一个<span class="monospaced">FieldSettings</span>作为第二个参数。因为<span class="monospaced">FieldSettings</span>是
+<span class="monospaced">IsString</span>的实例，它会被编译器扩展成：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt>fromString <span style="color: #FF0000">"this is not used"</span> <span style="color: #990000">==</span> <span style="color: #009900">FieldSettings</span>
+    <span style="color: #990000">{</span> fsLabel <span style="color: #990000">=</span> <span style="color: #FF0000">"this is not used"</span>
+    <span style="color: #990000">,</span> fsTooltip <span style="color: #990000">=</span> <span style="color: #009900">Nothing</span>
+    <span style="color: #990000">,</span> fsId <span style="color: #990000">=</span> <span style="color: #009900">Nothing</span>
+    <span style="color: #990000">,</span> fsName <span style="color: #990000">=</span> <span style="color: #009900">Nothing</span>
+    <span style="color: #990000">,</span> fsAttrs <span style="color: #990000">=</span> <span style="color: #990000">[]</span>
+    <span style="color: #990000">}</span></tt></pre></div></div>
+<div class="paragraph"><p>在applicative表单中，<span class="monospaced">fsLabel</span>和<span class="monospaced">fsTooltip</span>值在生成HTML时会用上。在monadic
+表单中，Yesod不会为你生成任何HTML`&#8216;封装代码(wrapper)&#8217;'，因此这些值被忽略。然而
+，我们还是将其保留为<span class="monospaced">FieldSettings</span>的参数，允许你在需要时覆盖域的<span class="monospaced">id</span>和
+<span class="monospaced">name</span>属性。</p></div>
+<div class="paragraph"><p>另一个有趣的地方是<span class="monospaced">extra</span>值。<span class="monospaced">GET</span>表单会加入一个额外的域来表示表单提交，而
+<span class="monospaced">POST</span>表单会加入一个安全令牌防止CSRF攻击。如果你在表单中没有加入这个额外的隐
+藏域，提交表单时会失败。</p></div>
+<div class="paragraph"><p>除此以外，事情就比较直接。我们通过组合<span class="monospaced">nameRes</span>和<span class="monospaced">ageRes</span>值来创建
+<span class="monospaced">personRes</span>值，然后返回一个元组，包含人的信息和控件。在<span class="monospaced">getHomeR</span>函数中，一切和
+applicative表单看起来一样。实际上，在这个例子中你把monadic表单替换成
+applicative表单，它还是能工作。</p></div>
+</div>
+<div class="sect2">
+<h3 id="_输入表单_input_forms">输入表单(Input forms)</h3>
+<div class="paragraph"><p>Applicative和monadic表单既帮你生成HTML代码，也帮你解析用户输入。有时候，你只需
+要解析输入，比如当你的HTML中已经有表单，或你想用Javascript动态生成表单。这种情
+况下，你会需要用到输入表单。</p></div>
+<div class="paragraph"><p>输入表单总体上与applicative表单和monadic表单一致，区别在于：</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+你使用<span class="monospaced">runInputPost</span>和<span class="monospaced">runInputGet</span>函数(运行表单)。
+</p>
+</li>
+<li>
+<p>
+你使用<span class="monospaced">ireq</span>和<span class="monospaced">iopt</span>函数(定义表单域)。这两个函数都都有两个参数：域的类型
+  和名字(即HTML中的<span class="monospaced">name</span>属性)。
+</p>
+</li>
+<li>
+<p>
+在运行一个表单后，它(只)返回值。它既不返回控件，也不返回编码类型。
+</p>
+</li>
+<li>
+<p>
+如果验证出错，会返回“无效参数”的错误页面。
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>你可以用输入表单来重写上面的例子。但是注意，输入表单更不用户友好。如果你在
+applicative或monadic表单中出错，你会返回表单页面，你之前输入的值还在，并有一条
+错误消息告诉你哪些需要修正。在输入表单中，用户只会得到错误消息。</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE MultiParamTypeClasses #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE OverloadedStrings     #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE QuasiQuotes           #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TemplateHaskell       #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TypeFamilies          #-}</span></span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           Control<span style="color: #990000">.</span><span style="color: #009900">Applicative</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           Data<span style="color: #990000">.</span><span style="color: #009900">Text</span>           <span style="color: #990000">(</span><span style="color: #009900">Text</span><span style="color: #990000">)</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           <span style="color: #009900">Yesod</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">App</span> <span style="color: #990000">=</span> <span style="color: #009900">App</span>
+
+mkYesod <span style="color: #FF0000">"App"</span> <span style="color: #990000">[</span>parseRoutes<span style="color: #990000">|</span>
+<span style="color: #990000">/</span> <span style="color: #009900">HomeR</span> <span style="color: #009900">GET</span>
+<span style="color: #990000">/</span>input <span style="color: #009900">InputR</span> <span style="color: #009900">GET</span>
+<span style="color: #990000">|]</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">Yesod</span> <span style="color: #009900">App</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">RenderMessage</span> <span style="color: #009900">App</span> <span style="color: #009900">FormMessage</span> <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    renderMessage <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="color: #990000">=</span> defaultFormMessage
+
+<span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">Person</span> <span style="color: #990000">=</span> <span style="color: #009900">Person</span>
+    <span style="color: #990000">{</span> personName <span style="color: #990000">::</span> <span style="color: #009900">Text</span>
+    <span style="color: #990000">,</span> personAge  <span style="color: #990000">::</span> <span style="color: #009900">Int</span>
+    <span style="color: #990000">}</span>
+    <span style="font-weight: bold"><span style="color: #0000FF">deriving</span></span> <span style="color: #009900">Show</span>
+
+getHomeR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+getHomeR <span style="color: #990000">=</span> defaultLayout
+    <span style="color: #990000">[</span>whamlet<span style="color: #990000">|</span>
+        <span style="color: #990000">&lt;</span>form action<span style="color: #990000">=@{</span><span style="color: #009900">InputR</span><span style="color: #990000">}&gt;</span>
+            <span style="color: #990000">&lt;</span>p<span style="color: #990000">&gt;</span>
+                <span style="color: #009900">My</span> name is
+                <span style="color: #990000">&lt;</span>input <span style="font-weight: bold"><span style="color: #0000FF">type</span></span><span style="color: #990000">=</span>text name<span style="color: #990000">=</span>name<span style="color: #990000">&gt;</span>
+                and <span style="color: #009900">I</span> am
+                <span style="color: #990000">&lt;</span>input <span style="font-weight: bold"><span style="color: #0000FF">type</span></span><span style="color: #990000">=</span>text name<span style="color: #990000">=</span>age<span style="color: #990000">&gt;</span>
+                years old<span style="color: #990000">.</span>
+                <span style="color: #990000">&lt;</span>input <span style="font-weight: bold"><span style="color: #0000FF">type</span></span><span style="color: #990000">=</span>submit value<span style="color: #990000">=</span><span style="color: #FF0000">"Introduce myself"</span><span style="color: #990000">&gt;</span>
+    <span style="color: #990000">|]</span>
+
+getInputR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+getInputR <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+    person <span style="color: #990000">&lt;-</span> runInputGet <span style="color: #990000">$</span> <span style="color: #009900">Person</span>
+                <span style="color: #990000">&lt;$&gt;</span> ireq textField <span style="color: #FF0000">"name"</span>
+                <span style="color: #990000">&lt;*&gt;</span> ireq intField <span style="color: #FF0000">"age"</span>
+    defaultLayout <span style="color: #990000">[</span>whamlet<span style="color: #990000">|&lt;</span>p<span style="color: #990000">&gt;#{</span>show person<span style="color: #990000">}|]</span>
+
+main <span style="color: #990000">::</span> <span style="color: #009900">IO</span> <span style="color: #990000">()</span>
+main <span style="color: #990000">=</span> warp <span style="color: #993399">3000</span> <span style="color: #009900">App</span></tt></pre></div></div>
+</div>
+<div class="sect2">
+<h3 id="_自定义域">自定义域</h3>
+<div class="paragraph"><p>Yesod自带的域可以满足大部分表单的需求。但有时候，你还是需要更专门的域。幸运的
+是，你可以在Yesod中自己创建新的域。<span class="monospaced">Field</span>构造函数有三个参数：<span class="monospaced">fieldParse</span>
+接受用户提交值的列表，并返回下面三种结果之一：</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+提示验证失败的错误消息。
+</p>
+</li>
+<li>
+<p>
+解析出的值。
+</p>
+</li>
+<li>
+<p>
+Nothing，说明没有提交数据。
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>最后一种情况听上去有些奇怪。看上去Yesod能自动知道当输入列表为空时有没有数据。
+但实际上，对于有些域，没有输入实际上是合法输入。比如说复选框(checkbox)，通过发
+送一个空列表来表示没被选中。</p></div>
+<div class="paragraph"><p>另外，输入列表是怎样的？它应该是<span class="monospaced">Maybe</span>类型的吗？也不是这样。比如组合复选框
+和多选列表，你会有多个同名控件。在下面的例子中我们也用了这个技巧。</p></div>
+<div class="paragraph"><p>第二个输入参数是<span class="monospaced">fieldView</span>，它负责将控件显示给用户。这个函数有如下参数：</p></div>
+<div class="olist arabic"><ol class="arabic">
+<li>
+<p>
+<span class="monospaced">id</span>属性。
+</p>
+</li>
+<li>
+<p>
+<span class="monospaced">name</span>属性。
+</p>
+</li>
+<li>
+<p>
+其它任意属性。
+</p>
+</li>
+<li>
+<p>
+返回值是<span class="monospaced">Either</span>类型的。它或者是(解析失败时)未解析的输入，或者是成功解析的
+值。<span class="monospaced">intField</span>可以很好的说明这一点。如果你输入<strong><span class="monospaced">42</span></strong>，返回值会是<span class="monospaced">Right
+42</span>。但如果你输入<strong><span class="monospaced">turtle</span></strong>，返回值会是<span class="monospaced">Left "turtle"</span>。这允许你给输入标
+签(input tag)设置value属性，给用户一致的体验。
+</p>
+</li>
+<li>
+<p>
+<span class="monospaced">Bool</span>值说明域是否为必须的。
+</p>
+</li>
+</ol></div>
+<div class="paragraph"><p>构造函数的最后一个输入参数是<span class="monospaced">fieldEnctype</span>。如果你要处理上传文件，这应该是
+<span class="monospaced">Multipart</span>；其它情况下，它应该是<span class="monospaced">UrlEncoded</span>。</p></div>
+<div class="paragraph"><p>作为一个小例子，让我们创建一个新的域用来确认密码。这个域有两个相同名字
+的输入框，当它们值不同时返回错误消息。注意，与大部分域不同，它<em>不</em>提供input标
+签的value属性，因为你<strong>绝</strong>不会想把用户输入的密码作为HTML返回。</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt>passwordConfirmField <span style="color: #990000">::</span> <span style="color: #009900">Field</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Text</span>
+passwordConfirmField <span style="color: #990000">=</span> <span style="color: #009900">Field</span>
+    <span style="color: #990000">{</span> fieldParse <span style="color: #990000">=</span> <span style="color: #990000">\</span>rawVals _fileVals <span style="color: #990000">-&gt;</span>
+        <span style="font-weight: bold"><span style="color: #0000FF">case</span></span> rawVals <span style="font-weight: bold"><span style="color: #0000FF">of</span></span>
+            <span style="color: #990000">[</span>a<span style="color: #990000">,</span> b<span style="color: #990000">]</span>
+                <span style="color: #990000">|</span> a <span style="color: #990000">==</span> b <span style="color: #990000">-&gt;</span> return <span style="color: #990000">$</span> <span style="color: #009900">Right</span> <span style="color: #990000">$</span> <span style="color: #009900">Just</span> a
+                <span style="color: #990000">|</span> otherwise <span style="color: #990000">-&gt;</span> return <span style="color: #990000">$</span> <span style="color: #009900">Left</span> <span style="color: #FF0000">"Passwords don't match"</span>
+            <span style="color: #990000">[]</span> <span style="color: #990000">-&gt;</span> return <span style="color: #990000">$</span> <span style="color: #009900">Right</span> <span style="color: #009900">Nothing</span>
+            <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="color: #990000">-&gt;</span> return <span style="color: #990000">$</span> <span style="color: #009900">Left</span> <span style="color: #FF0000">"You must enter two values"</span>
+    <span style="color: #990000">,</span> fieldView <span style="color: #990000">=</span> <span style="color: #990000">\</span>idAttr nameAttr otherAttrs eResult isReq <span style="color: #990000">-&gt;</span>
+        <span style="color: #990000">[</span>whamlet<span style="color: #990000">|</span>
+            <span style="color: #990000">&lt;</span>input id<span style="color: #990000">=#{</span>idAttr<span style="color: #990000">}</span> name<span style="color: #990000">=#{</span>nameAttr<span style="color: #990000">}</span> <span style="color: #990000">*{</span>otherAttrs<span style="color: #990000">}</span> <span style="font-weight: bold"><span style="color: #0000FF">type</span></span><span style="color: #990000">=</span>password<span style="color: #990000">&gt;</span>
+            <span style="color: #990000">&lt;</span>div<span style="color: #990000">&gt;</span><span style="color: #009900">Confirm</span><span style="color: #990000">:</span>
+            <span style="color: #990000">&lt;</span>input id<span style="color: #990000">=#{</span>idAttr<span style="color: #990000">}-</span>confirm name<span style="color: #990000">=#{</span>nameAttr<span style="color: #990000">}</span> <span style="color: #990000">*{</span>otherAttrs<span style="color: #990000">}</span> <span style="font-weight: bold"><span style="color: #0000FF">type</span></span><span style="color: #990000">=</span>password<span style="color: #990000">&gt;</span>
+        <span style="color: #990000">|]</span>
+    <span style="color: #990000">,</span> fieldEnctype <span style="color: #990000">=</span> <span style="color: #009900">UrlEncoded</span>
+    <span style="color: #990000">}</span>
+
+getHomeR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+getHomeR <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+    <span style="color: #990000">((</span>res<span style="color: #990000">,</span> widget<span style="color: #990000">),</span> enctype<span style="color: #990000">)</span> <span style="color: #990000">&lt;-</span> runFormGet <span style="color: #990000">$</span> renderDivs
+        <span style="color: #990000">$</span> areq passwordConfirmField <span style="color: #FF0000">"Password"</span> <span style="color: #009900">Nothing</span>
+    defaultLayout
+        <span style="color: #990000">[</span>whamlet<span style="color: #990000">|</span>
+            <span style="color: #990000">&lt;</span>p<span style="color: #990000">&gt;</span><span style="color: #009900">Result</span><span style="color: #990000">:</span> <span style="color: #990000">#{</span>show res<span style="color: #990000">}</span>
+            <span style="color: #990000">&lt;</span>form enctype<span style="color: #990000">=#{</span>enctype<span style="color: #990000">}&gt;</span>
+                <span style="color: #990000">^{</span>widget<span style="color: #990000">}</span>
+                <span style="color: #990000">&lt;</span>input <span style="font-weight: bold"><span style="color: #0000FF">type</span></span><span style="color: #990000">=</span>submit value<span style="color: #990000">=</span><span style="color: #FF0000">"Change password"</span><span style="color: #990000">&gt;</span>
+        <span style="color: #990000">|]</span></tt></pre></div></div>
+</div>
+<div class="sect2">
+<h3 id="_不是来自用户的值">不是来自用户的值</h3>
+<div class="paragraph"><p>假设你在写一个博客托管应用，你需要有一个表单让用户输入博客文章。一篇博客会包含
+四块信息：</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+标题
+</p>
+</li>
+<li>
+<p>
+HTML内容
+</p>
+</li>
+<li>
+<p>
+用户ID或作者名
+</p>
+</li>
+<li>
+<p>
+发表日期
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>我们需要用户输入前两项，而不是后两项。用户ID会在用户登录时自动得到(我们还没讲
+到登录的话题)，发表日期应该是当前时刻。问题是，我们怎么保持简单的applicative表
+单语法，同时引入不是来自用户的值？</p></div>
+<div class="paragraph"><p>答案是有两个辅助函数：</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+<span class="monospaced">pure</span>允许我们将一个普通的值封装成applicative表单值。
+</p>
+</li>
+<li>
+<p>
+<span class="monospaced">lift</span>允许我们在applicative表单中执行任意的<span class="monospaced">Handler</span>操作。
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>让我们看一个用到这两个函数的例子：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE MultiParamTypeClasses #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE OverloadedStrings     #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE QuasiQuotes           #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TemplateHaskell       #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TypeFamilies          #-}</span></span>
+<span style="font-weight: bold"><span style="color: #0000FF">module</span></span> <span style="color: #009900">Case</span> <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           Control<span style="color: #990000">.</span><span style="color: #009900">Applicative</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           Data<span style="color: #990000">.</span><span style="color: #009900">Text</span>           <span style="color: #990000">(</span><span style="color: #009900">Text</span><span style="color: #990000">)</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           Data<span style="color: #990000">.</span><span style="color: #009900">Time</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           <span style="color: #009900">Yesod</span>
+
+<span style="font-style: italic"><span style="color: #9A1900">-- 在“验证与授权”一章中，我们会详细讲解</span></span>
+<span style="font-weight: bold"><span style="color: #0000FF">newtype</span></span> <span style="color: #009900">UserId</span> <span style="color: #990000">=</span> <span style="color: #009900">UserId</span> <span style="color: #009900">Int</span>
+    <span style="font-weight: bold"><span style="color: #0000FF">deriving</span></span> <span style="color: #009900">Show</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">App</span> <span style="color: #990000">=</span> <span style="color: #009900">App</span>
+
+mkYesod <span style="color: #FF0000">"App"</span> <span style="color: #990000">[</span>parseRoutes<span style="color: #990000">|</span>
+<span style="color: #990000">/</span> <span style="color: #009900">HomeR</span> <span style="color: #009900">GET</span> <span style="color: #009900">POST</span>
+<span style="color: #990000">|]</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">Yesod</span> <span style="color: #009900">App</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">RenderMessage</span> <span style="color: #009900">App</span> <span style="color: #009900">FormMessage</span> <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    renderMessage <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="color: #990000">=</span> defaultFormMessage
+
+<span style="font-weight: bold"><span style="color: #0000FF">type</span></span> <span style="color: #009900">Form</span> a <span style="color: #990000">=</span> <span style="color: #009900">Html</span> <span style="color: #990000">-&gt;</span> <span style="color: #009900">MForm</span> <span style="color: #009900">Handler</span> <span style="color: #990000">(</span><span style="color: #009900">FormResult</span> a<span style="color: #990000">,</span> <span style="color: #009900">Widget</span><span style="color: #990000">)</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">Blog</span> <span style="color: #990000">=</span> <span style="color: #009900">Blog</span>
+    <span style="color: #990000">{</span> blogTitle    <span style="color: #990000">::</span> <span style="color: #009900">Text</span>
+    <span style="color: #990000">,</span> blogContents <span style="color: #990000">::</span> <span style="color: #009900">Textarea</span>
+    <span style="color: #990000">,</span> blogUser     <span style="color: #990000">::</span> <span style="color: #009900">UserId</span>
+    <span style="color: #990000">,</span> blogPosted   <span style="color: #990000">::</span> <span style="color: #009900">UTCTime</span>
+    <span style="color: #990000">}</span>
+    <span style="font-weight: bold"><span style="color: #0000FF">deriving</span></span> <span style="color: #009900">Show</span>
+
+form <span style="color: #990000">::</span> <span style="color: #009900">UserId</span> <span style="color: #990000">-&gt;</span> <span style="color: #009900">Form</span> <span style="color: #009900">Blog</span>
+form userId <span style="color: #990000">=</span> renderDivs <span style="color: #990000">$</span> <span style="color: #009900">Blog</span>
+    <span style="color: #990000">&lt;$&gt;</span> areq textField <span style="color: #FF0000">"Title"</span> <span style="color: #009900">Nothing</span>
+    <span style="color: #990000">&lt;*&gt;</span> areq textareaField <span style="color: #FF0000">"Contents"</span> <span style="color: #009900">Nothing</span>
+    <span style="color: #990000">&lt;*&gt;</span> pure userId
+    <span style="color: #990000">&lt;*&gt;</span> lift <span style="color: #990000">(</span>liftIO getCurrentTime<span style="color: #990000">)</span>
+
+getHomeR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+getHomeR <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+    <span style="font-weight: bold"><span style="color: #0000FF">let</span></span> userId <span style="color: #990000">=</span> <span style="color: #009900">UserId</span> <span style="color: #993399">5</span> <span style="font-style: italic"><span style="color: #9A1900">-- 再一次，参阅“验证与授权”章</span></span>
+    <span style="color: #990000">((</span>res<span style="color: #990000">,</span> widget<span style="color: #990000">),</span> enctype<span style="color: #990000">)</span> <span style="color: #990000">&lt;-</span> runFormPost <span style="color: #990000">$</span> form userId
+    defaultLayout
+        <span style="color: #990000">[</span>whamlet<span style="color: #990000">|</span>
+            <span style="color: #990000">&lt;</span>p<span style="color: #990000">&gt;</span><span style="color: #009900">Previous</span> result<span style="color: #990000">:</span> <span style="color: #990000">#{</span>show res<span style="color: #990000">}</span>
+            <span style="color: #990000">&lt;</span>form method<span style="color: #990000">=</span>post action<span style="color: #990000">=@{</span><span style="color: #009900">HomeR</span><span style="color: #990000">}</span> enctype<span style="color: #990000">=#{</span>enctype<span style="color: #990000">}&gt;</span>
+                <span style="color: #990000">^{</span>widget<span style="color: #990000">}</span>
+                <span style="color: #990000">&lt;</span>input <span style="font-weight: bold"><span style="color: #0000FF">type</span></span><span style="color: #990000">=</span>submit<span style="color: #990000">&gt;</span>
+        <span style="color: #990000">|]</span>
+
+postHomeR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+postHomeR <span style="color: #990000">=</span> getHomeR
+
+main <span style="color: #990000">::</span> <span style="color: #009900">IO</span> <span style="color: #990000">()</span>
+main <span style="color: #990000">=</span> warp <span style="color: #993399">3000</span> <span style="color: #009900">App</span></tt></pre></div></div>
+</div>
+<div class="sect2">
+<h3 id="_小结">小结</h3>
+<div class="paragraph"><p>Yesod中的表单分为三种。Applicative表单是最常用的，因为它提供了良好的用户界面和
+简单的API。Monaidc表单更为强大，但也更难使用。输入表单在你只需读取用户输入，而
+不生成input控件时使用。</p></div>
+<div class="paragraph"><p>Yesod自带了很多种<span class="monospaced">Field</span>。为了在表单中使用它们，你需要指明表单的种类以及该域
+是必须还是可选的。所以有六个辅助函数：<span class="monospaced">areq</span>、<span class="monospaced">aopt</span>、<span class="monospaced">mreq</span>、<span class="monospaced">mopt</span>、
+<span class="monospaced">ireq</span>和<span class="monospaced">iopt</span>。</p></div>
+<div class="paragraph"><p>表单拥有强大的功能。它们可以自动插入Javascript，以帮助你使用更漂亮的UI控件，比
+如jQuery UI日期选择器。表单也完全支持i18n，因此你可以支持全球用户。当你有更特
+殊的需求时，你可以将一些验证函数写到已有的域里，或从头写一个新的域。</p></div>
+</div>
+</div>
+</div>
+</div>
+<div id="footnotes"><hr /></div>
+<div id="footer">
+<div id="footer-text">
+Last updated 2014-01-18 21:50:49 CST <br/>
+本站全部内容以MIT和Creative Commons 4.0许可证发布。详情请看<a href="https://raw.github.com/rnons/yesodbook-zh/master/LICENSE">许可证文件</a>。
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>

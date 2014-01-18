@@ -1,0 +1,99 @@
+body {
+  font-family: "Crimson Text", serif;
+  margin: 0;
+}
+
+#layout-menu-box {
+  display: table-cell;
+  left: 0px;
+  top: 0px;
+  width: 170px;
+  height: 100%;
+  z-index: 1;
+  background-color: #f4f4f4;
+  padding: 50px;
+}
+
+#layout-content-box {
+  display: table-cell;
+  margin-left: 300px;
+  background-color: white;
+  padding: 90px 90px 0 90px;
+}
+
+h1 {
+  margin-top: 0.5em;
+}
+
+#layout-banner {
+  color: white;
+  background-color: #73a0c5;
+  font-family: Arial,Helvetica,sans-serif;
+  text-align: left;
+  padding: 0.8em 20px;
+}
+
+#layout-logo {
+  height: 105px;
+  width: 600px;
+  margin-left: 75px;
+}
+
+#logo-image {
+  background: url("yesod-logo.png") 50% 50% no-repeat;
+  height: 75px;
+  width: 100%;
+}
+
+#logo-title {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 1.2em;
+  text-align: center;
+}
+
+#logo-description {
+  letter-spacing: 0.1em;
+  left: 700px;
+  width: 220px;
+  position: absolute;
+  top: 0px;
+  padding: 30px;
+}
+
+#layout-menu {
+  height: 100%;
+  padding-top: 0.8em;
+  padding-left: 15px;
+  padding-right: 0.8em;
+  font-size: 1.0em;
+  font-family: Arial,Helvetica,sans-serif;
+  font-weight: bold;
+}
+#layout-menu a {
+  line-height: 2em;
+  margin-left: 0.5em;
+}
+#layout-menu a:link, #layout-menu a:visited, #layout-menu a:hover {
+  color: #527bbd;
+  text-decoration: none;
+}
+#layout-menu a:hover {
+  color: navy;
+  text-decoration: none;
+}
+#layout-menu #seperator {
+  border-top: 2px solid silver;
+  margin-top: 0.2em;
+}
+
+#layout-content {
+  padding-top: 0.2em;
+  padding-left: 1.0em;
+  padding-right: 0.4em;
+}
+
+@media print {
+  #layout-banner-box { display: none; }
+  #layout-menu-box { display: none; }
+  #layout-content-box { margin-top: 0; margin-left: 0; }
+}

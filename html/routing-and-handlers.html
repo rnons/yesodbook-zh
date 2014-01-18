@@ -1,0 +1,614 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+    "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta name="generator" content="AsciiDoc 8.6.8" />
+<title></title>
+<link rel="stylesheet" href="/static/asciidoc.css" type="text/css" />
+<link rel="stylesheet" href="/static/layout.css" type="text/css" />
+<script type="text/javascript" src="/static/asciidoc.js"></script>
+<script type="text/javascript">
+/*<![CDATA[*/
+asciidoc.install(2);
+/*]]>*/
+</script>
+</head>
+<body>
+<div id="layout-banner">
+  <div id="layout-logo">
+    <div id="logo-image"></div>
+    <div id="logo-title">Yesod Book中文翻译</div>
+  </div>
+  <div id="logo-description">Yesod是一个Haskell写的web框架，用于开发类型安全、RESTful、高性能的web应用</div>
+</div>
+<div id="layout-menu-box">
+<div id="layout-menu">
+  <div><a href="index.html">目录</a></div>
+  <div id="seperator"></div>
+  <div><a href="/html/introduction.html">引言</a></div>
+  <div><a href="/html/haskell.html">Haskell</a></div>
+  <div><a href="/html/basics.html">基础</a></div>
+  <div><a href="/html/shakespearean-templates.html">莎氏模板</a></div>
+  <div><a href="/html/widgets.html">控件</a></div>
+  <div><a href="/html/yesod-typeclass.html">Yesod型类</a></div>
+  <div><a href="/html/routing-and-handlers.html">路由和处理函数</a></div>
+  <div><a href="/html/forms.html">表单</a></div>
+  <div><a href="/html/sessions.html">会话</a></div>
+  <div><a href="/html/persistent.html">Persistent</a></div>
+  <div><a href="/html/deploying-your-webapp.html">部署你的web应用</a></div>
+  <div id="seperator"></div>
+</div>
+</div>
+<div id="layout-content-box">
+<div id="layout-content">
+<div id="header">
+<div id="toc">
+  <div id="toctitle">本章目录</div>
+  <noscript><p><b>JavaScript must be enabled in your browser to display the table of contents.</b></p></noscript>
+</div>
+</div>
+<div id="content">
+<div class="sect1">
+<h2 id="_路由_routing_和处理函数_handlers">路由(Routing)和处理函数(Handlers)</h2>
+<div class="sectionbody">
+<div class="paragraph"><p>如果你把Yesod看作是MVC(Model-View-Controller)框架，那路由和处理函数就是控制器
+部分。作为对比，我们看看两种在其它web开发环境中会采用的路由方法：</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+基于文件名的分发。比如，PHP和ASP就是这么做的。
+</p>
+</li>
+<li>
+<p>
+有一个中央路由函数，基于正则表达式去解析路由。Django和Rails用的这种方法。
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>Yesod在原理上更接近后一种方法。即便如此，还是有显著的差别。Yesod对路由段进行模
+式匹配，而不是用正则表达式。Yesod会创建一个中间数据类型(称之为路由数据类型，或
+类型安全URL)，以及(路由与处理函数间)双向的转换函数，而不像(Django和Rails等)只
+有路由到处理函数的映射。</p></div>
+<div class="paragraph"><p>手动来写这样一个高级系统的的代码会很繁琐且容易出错。因此，Yesod定义了领域专用
+语言(DSL: Domain Specific Language)来声明路由，并且提供了Haskell模板函数将DSL
+转换为Haskell代码。本章会讲解路由声明的语法，给你看一些DSL生成的代码，并解释路
+由与处理函数间的交互。</p></div>
+<div class="sect2">
+<h3 id="_路由语法">路由语法</h3>
+<div class="paragraph"><p>与其尝试将路由声明硬塞进现有语法中，Yesod的方法是使用一种专为路由设计的简化的
+语法。这样做的好处是，代码更容易写，并且没有Yesod经验的人也能很容易的读懂和理
+解应用的站点地图(sitemap)。</p></div>
+<div class="paragraph"><p>下面是这种语法的一个简单例子：</p></div>
+<div class="listingblock">
+<div class="content"></div></div>
+<div class="paragraph"><p>接下来几个小节会详细解释路由声明是怎么工作的。</p></div>
+<div class="sect3">
+<h4 id="_路径段_pieces">路径段(Pieces)</h4>
+<div class="paragraph"><p>Yesod收到请求后的第一件事是将请求路径分段。分段依据是斜线。比如：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt>toPieces <span style="color: #FF0000">"/"</span> <span style="color: #990000">=</span> <span style="color: #990000">[]</span>
+toPieces <span style="color: #FF0000">"/foo/bar/baz/"</span> <span style="color: #990000">=</span> <span style="color: #990000">[</span><span style="color: #FF0000">"foo"</span><span style="color: #990000">,</span> <span style="color: #FF0000">"bar"</span><span style="color: #990000">,</span> <span style="color: #FF0000">"baz"</span><span style="color: #990000">,</span> <span style="color: #FF0000">""</span><span style="color: #990000">]</span></tt></pre></div></div>
+<div class="paragraph"><p>你可能注意到当路径末端有斜线或双斜线("/foo//bar//")时会很有趣，还有一些其它情
+况也是。Yeosd鼓励使用标准URL(canonical URL)；如果用户请求的的路径最后有斜线，
+或包含双斜线，他们会被自动重定向到标准路径。这保证了你每个资源只有一个URL，也
+有助于提升搜索排名。</p></div>
+<div class="paragraph"><p>这意味着你不用考虑URL的具体结构：你可以安心于考虑路径段，而Yesod会自动用斜线连
+接路径段并负责转义(escape)有问题的字符。</p></div>
+<div class="paragraph"><p>顺便说一句，如果你想更好的控制路径如何分段及如何重新拼接，你可以看“Yesod型类”
+一章中关于<span class="monospaced">cleanPath</span>和<span class="monospaced">joinPath</span>方法的讲解。</p></div>
+<div class="sect4">
+<h5 id="_路径段的类型">路径段的类型</h5>
+<div class="paragraph"><p>声明路由时，你有三种类型可选：</p></div>
+<div class="dlist"><dl>
+<dt class="hdlist1">
+Static
+</dt>
+<dd>
+<p>
+这是URL中必须精确匹配的纯文本部分。
+</p>
+</dd>
+<dt class="hdlist1">
+Dynamic single
+</dt>
+<dd>
+<p>
+这是一个路径段(就是在两根斜线之间的部分)，但表示的是用户提
+交的值。这是在页面请求中接收用户输入的主要方法。这些段以#号开始，后接数据类型
+。该数据类型必须是<span class="monospaced">PathPiece</span>的实例。
+</p>
+</dd>
+<dt class="hdlist1">
+Dynamic multi
+</dt>
+<dd>
+<p>
+与上同，但URL中有多个段可以接收用户输入。它必须是路由声明的最
+后一个路径段。以*号开始，后接数据类型，该数据类型必须是<span class="monospaced">PathMultiPiece</span>的实
+例。这种情况并不像上面两种那么常见，但对于有些功能，比如用静态树来表示文件结构
+或维基结构，会很有用。
+</p>
+</dd>
+</dl></div>
+<div class="paragraph"><p>让我们看一些你可能会用上的资源模式(resource pattern)的标准写法。最简单的，应用
+的根路径是<span class="monospaced">/</span>。同样也很简单，你可能想把FAQ放在<span class="monospaced">/page/faq</span>。</p></div>
+<div class="paragraph"><p>现在假设我们要写一个斐波那契(Fibonacci)网站。你可以这样构建URL：<span class="monospaced">/fib/#Int</span>。
+但这会有个小问题：我们不希望负数和0传递进我们的应用。幸运的是，类型系统能做到
+这一点：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-weight: bold"><span style="color: #0000FF">newtype</span></span> <span style="color: #009900">Natural</span> <span style="color: #990000">=</span> <span style="color: #009900">Natural</span> <span style="color: #009900">Int</span>
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">PathPiece</span> <span style="color: #009900">Natural</span> <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    toPathPiece <span style="color: #990000">(</span><span style="color: #009900">Natural</span> i<span style="color: #990000">)</span> <span style="color: #990000">=</span> T<span style="color: #990000">.</span>pack <span style="color: #990000">$</span> show i
+    fromPathPiece s <span style="color: #990000">=</span>
+        <span style="font-weight: bold"><span style="color: #0000FF">case</span></span> reads <span style="color: #990000">$</span> T<span style="color: #990000">.</span>unpack s <span style="font-weight: bold"><span style="color: #0000FF">of</span></span>
+            <span style="color: #990000">(</span>i<span style="color: #990000">,</span> <span style="color: #FF0000">""</span><span style="color: #990000">):</span><span style="font-weight: bold"><span style="color: #0000FF">_</span></span>
+                <span style="color: #990000">|</span> i <span style="color: #990000">&lt;</span> <span style="color: #993399">1</span> <span style="color: #990000">-&gt;</span> <span style="color: #009900">Nothing</span>
+                <span style="color: #990000">|</span> otherwise <span style="color: #990000">-&gt;</span> <span style="color: #009900">Just</span> <span style="color: #990000">$</span> <span style="color: #009900">Natural</span> i
+            <span style="color: #990000">[]</span> <span style="color: #990000">-&gt;</span> <span style="color: #009900">Nothing</span></tt></pre></div></div>
+<div class="paragraph"><p>在第一行我们定义了一个简单的newtype来阻止非法输入，它封装了一个Int值。我们可以
+看到<span class="monospaced">PathPiece</span>是一个型类并有两个方法。<span class="monospaced">toPathPiece</span>仅仅是将输入转为
+<span class="monospaced">Text</span>值。<span class="monospaced">fromPathPiece</span><em>尝试</em>将<span class="monospaced">Text</span>值转换为我们的数据类型，转换失
+败则返回<span class="monospaced">Nothing</span>。通过使用这个数据类型，我们可以保证只有自然数会传递给处理
+函数，再一次用类型系统保卫了我们的边界。</p></div>
+<div class="admonitionblock">
+<table><tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">在现实的应用中，我们还需要保证在应用内部不会不小心构造出无效的
+<span class="monospaced">Natural</span>值。要做到这一点，我们可以用像
+<a href="http://www.haskell.org/haskellwiki/Smart_constructors">智能构造函数(smart
+constructors)</a>这样的方法。就这个例子来说，我们为保持代码简单而没有这样做。</td>
+</tr></table>
+</div>
+<div class="paragraph"><p>定义<span class="monospaced">PathMultiPiece</span>也同样简单。假设我们的一个Wiki站点至少有两级结构；我们
+可以定义这样的数据类型：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">Page</span> <span style="color: #990000">=</span> <span style="color: #009900">Page</span> <span style="color: #009900">Text</span> <span style="color: #009900">Text</span> <span style="color: #990000">[</span><span style="color: #009900">Text</span><span style="color: #990000">]</span> <span style="font-style: italic"><span style="color: #9A1900">-- 2级或更多</span></span>
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">PathMultiPiece</span> <span style="color: #009900">Page</span> <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    toPathMultiPiece <span style="color: #990000">(</span><span style="color: #009900">Page</span> x y z<span style="color: #990000">)</span> <span style="color: #990000">=</span> x <span style="color: #990000">:</span> y <span style="color: #990000">:</span> z
+    fromPathMultiPiece <span style="color: #990000">(</span>x<span style="color: #990000">:</span>y<span style="color: #990000">:</span>z<span style="color: #990000">)</span> <span style="color: #990000">=</span> <span style="color: #009900">Just</span> <span style="color: #990000">$</span> <span style="color: #009900">Page</span> x y z
+    fromPathMultiPiece <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="color: #990000">=</span> <span style="color: #009900">Nothing</span></tt></pre></div></div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_资源名称">资源名称</h4>
+<div class="paragraph"><p>每一条资源模式还有一个名字。这个名字会成为类型安全URL构造函数的名字。因此，它
+必须以大写字母开头。并且习惯上，资源名称都以大写字母R结尾。这不是强制性的，只
+是惯例。</p></div>
+<div class="paragraph"><p>(类型安全URL)构造函数的准确定义依赖于它所对应的资源模式。资源模式中的动态部分
+，不管是一个段还是多个段，其数据类型都会成为构造函数的参数。这就在应用中为类型
+安全URL和合法URL建立了一对一的关联。</p></div>
+<div class="admonitionblock">
+<table><tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">这不意味着<em>每一个</em>值都是能工作的页面，只能说它是一个合法的URL。举例来
+说，如果数据库中没有Michael的记录，那<span class="monospaced">PersonR "Michael"</span>就不会解析到有效的页
+面。</td>
+</tr></table>
+</div>
+<div class="paragraph"><p>让我们看一些真实的例子。如果你将资源模式<span class="monospaced">/person/#Text</span>命名为<span class="monospaced">PersonR</span>，
+<span class="monospaced">/year/#Int</span>命名为<span class="monospaced">YearR</span>，<span class="monospaced">/page/faq</span>命名为<span class="monospaced">FaqR</span>，你会得到这样的路由
+数据类型：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">MyRoute</span> <span style="color: #990000">=</span> <span style="color: #009900">PersonR</span> <span style="color: #009900">Text</span>
+             <span style="color: #990000">|</span> <span style="color: #009900">YearR</span> <span style="color: #009900">Int</span>
+             <span style="color: #990000">|</span> <span style="color: #009900">FaqR</span></tt></pre></div></div>
+<div class="paragraph"><p>如果用户请求<span class="monospaced">/year/2009</span>，Yesod会将其转换成<span class="monospaced">YearR 2009</span>。
+<span class="monospaced">/person/Michael</span>会变成<span class="monospaced">PersonR "Michael"</span>，<span class="monospaced">/page/faq</span>会变成<span class="monospaced">FaqR</span>。
+另一方面，<span class="monospaced">/year/two-thousand-nine</span>、<span class="monospaced">/person/michael/snoyman</span>和
+<span class="monospaced">/page/FAQ</span>会导致404错误，这个错误是由类型系统返回的，而不是你的代码。</p></div>
+</div>
+<div class="sect3">
+<h4 id="_声明处理函数">声明处理函数</h4>
+<div class="paragraph"><p>声明资源的最后一个问题是资源如何处理。在Yesod中有三种选择：</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+一条路由对应一个处理函数，这个函数响应所有的请求方法。
+</p>
+</li>
+<li>
+<p>
+一条路由有多个处理函数，每个处理函数响应一种请求方法。任何其它(未定义处理函
+  数的)请求方法，都会返回405无效方法。
+</p>
+</li>
+<li>
+<p>
+将请求传递给子站(subsite)。
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>前两种方法很好定义。单一处理函数的情况，只要指明资源模式和资源名称，比如
+<span class="monospaced">/page/faq FaqR</span>。这种情况下，处理函数的名字是<span class="monospaced">handleFaqR</span>。</p></div>
+<div class="paragraph"><p>不同请求方法对应不同处理函数的情况类似，但会附加一列请求方法。请求方法全大写。
+比如，<span class="monospaced">/person/#String PersonR GET POST DELETE</span>。这种情况下，你需要定义三个
+处理函数：<span class="monospaced">getPersonR</span>，<span class="monospaced">postPersonR</span>和<span class="monospaced">deletePersonR</span>。</p></div>
+<div class="paragraph"><p>子站是Yesod中很有用，但复杂得多话题。我们会在后面的章节讲到子站，不过使用他们
+并不是太复杂。最常用的子站是静态文件子站，用来托管应用中的静态文件。为了从
+<span class="monospaced">/static</span>路径托管静态文件，你需要一行这样的资源定义：</p></div>
+<div class="listingblock">
+<div class="content"></div></div>
+<div class="paragraph"><p>在这行中，<span class="monospaced">/static</span>表明静态文件的路径。static这个词在这并没有什么特殊的意思，
+你可以用别的词替代，比如<span class="monospaced">/my/non-dynamic/files</span>。</p></div>
+<div class="paragraph"><p>下一个词<span class="monospaced">StaticR</span>，给出了资源名称。后面两个词表明我们是在用子站。<span class="monospaced">Static</span>
+是子站基础数据类型的名字，<span class="monospaced">getStatic</span>是从主站基础类型得到<span class="monospaced">Static</span>值的函数
+。</p></div>
+<div class="paragraph"><p>我们目前不要陷入子站的细节中。在“脚手架站点”一章中会详述静态子站。</p></div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_分发">分发</h3>
+<div class="paragraph"><p>你只要声明好你的路由，Yesod就会负责所有URL分发的细节。你只要确保提供了适当的处
+理函数。对于子站路由，你不需要写任何处理函数，但对于其它两种路由，你都需要写处
+理函数。我们之前已经提过命名规则(<span class="monospaced">MyHandlerR GET</span>变成<span class="monospaced">getMyHandlerR</span>，
+<span class="monospaced">MyOtherHandlerR</span>变成<span class="monospaced">handleMyOtherHandlerR</span>)。</p></div>
+<div class="paragraph"><p>现在我们知道了需要写哪些函数，那让我们弄清楚它们的类型标识是什么。</p></div>
+<div class="sect3">
+<h4 id="_返回类型">返回类型</h4>
+<div class="paragraph"><p>让我们看一个简单的处理函数：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt>mkYesod <span style="color: #FF0000">"Simple"</span> <span style="color: #990000">[</span>parseRoutes<span style="color: #990000">|</span>
+<span style="color: #990000">/</span> <span style="color: #009900">HomeR</span> <span style="color: #009900">GET</span>
+<span style="color: #990000">|]</span>
+
+getHomeR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+getHomeR <span style="color: #990000">=</span> defaultLayout <span style="color: #990000">[</span>whamlet<span style="color: #990000">|&lt;</span>h1<span style="color: #990000">&gt;</span><span style="color: #009900">This</span> is simple<span style="color: #990000">|]</span></tt></pre></div></div>
+<div class="paragraph"><p>返回值的类型有两部分：<span class="monospaced">Handler</span>和<span class="monospaced">Html</span>。我们分别看一下。</p></div>
+<div class="sect4">
+<h5 id="_handler_monad">Handler monad</h5>
+<div class="paragraph"><p>像<span class="monospaced">Widget</span>类型一样，<span class="monospaced">Handler</span>类型在Yesod类库中并没定义。类库中定义了这个：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">HandlerT</span> site m a</tt></pre></div></div>
+<div class="paragraph"><p>与<span class="monospaced">WidgetT</span>类似，它有三个输入参数：底层monad类型<span class="monospaced">m</span>，monad值<span class="monospaced">a</span>和基础数
+据类型<span class="monospaced">site</span>。每个应用都定义了<span class="monospaced">Handler</span>别名，它将该应用的基础数据类型赋给
+<span class="monospaced">site</span>，将<span class="monospaced">m</span>设置为<span class="monospaced">IO</span>。如果你的基础数据类型是<span class="monospaced">MyApp</span>，那你会有这样的
+别名定义：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-weight: bold"><span style="color: #0000FF">type</span></span> <span style="color: #009900">Handler</span> <span style="color: #990000">=</span> <span style="color: #009900">HandlerT</span> <span style="color: #009900">MyApp</span> <span style="color: #009900">IO</span></tt></pre></div></div>
+<div class="paragraph"><p>我们在写子站时会需要修改底层的monad，不过其它情况下用<span class="monospaced">IO</span>就够了。</p></div>
+<div class="paragraph"><p><span class="monospaced">HandlerT</span>这个monad提供了用户请求的信息(如请求参数)，允许修改响应(如响应的
+HTTP headers)等等。你写的大部分Yesod代码都会在这个monad里。</p></div>
+<div class="paragraph"><p>此外，还有一个叫<span class="monospaced">MonadHandler</span>的型类。<span class="monospaced">HandlerT</span>和<span class="monospaced">WidgetT</span>都是这个型类
+的实例，因此很多函数都可以在这两个monad间共用。如果你在API文档里看到
+<span class="monospaced">MonadHandler</span>，你应该知道这个函数可以在<span class="monospaced">Handler</span>函数里调用。</p></div>
+</div>
+<div class="sect4">
+<h5 id="_html">Html</h5>
+<div class="paragraph"><p>这个类型没有什么特别的。处理函数返回一些HTML内容，以<span class="monospaced">Html</span>数据类型表示。但很
+显然如果只允许生成HTML的响应，那Yesod就没什么用处。我们需要能返回CSS、
+Javascript、JSON、图片等等。所以问题是：可以返回哪些数据类型？</p></div>
+<div class="paragraph"><p>为了生成一个回应，我们需要两块信息：内容的类型(比如<span class="monospaced">text/html</span>、
+<span class="monospaced">image/png</span>)以及怎样将内容序列化(serialize)成字节流。这是用<span class="monospaced">TypedContent</span>
+类型表示的：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">TypedContent</span> <span style="color: #990000">=</span> <span style="color: #009900">TypedContent</span> <span style="color: #990000">!</span><span style="color: #009900">ContentType</span> <span style="color: #990000">!</span><span style="color: #009900">Content</span></tt></pre></div></div>
+<div class="paragraph"><p>我们还有一个型类用来表示所有能转换成<span class="monospaced">TypedContent</span>的数据类型：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-weight: bold"><span style="color: #0000FF">class</span></span> <span style="color: #009900">ToTypedContent</span> a <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    toTypedContent <span style="color: #990000">::</span> a <span style="color: #990000">-&gt;</span> <span style="color: #009900">TypedContent</span></tt></pre></div></div>
+<div class="paragraph"><p>很多常用的数据类型都是这个类的实例，包括<span class="monospaced">Html</span>、<span class="monospaced">Value</span>(aeson包中用来表示
+JSON值的类型)、<span class="monospaced">Text</span>，甚至包括<span class="monospaced">()</span>(用来表示空响应)。</p></div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_参数">参数</h4>
+<div class="paragraph"><p>让我们回到上文那个简单的例子：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt>mkYesod <span style="color: #FF0000">"Simple"</span> <span style="color: #990000">[</span>parseRoutes<span style="color: #990000">|</span>
+<span style="color: #990000">/</span> <span style="color: #009900">HomeR</span> <span style="color: #009900">GET</span>
+<span style="color: #990000">|]</span>
+
+getHomeR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+getHomeR <span style="color: #990000">=</span> defaultLayout <span style="color: #990000">[</span>whamlet<span style="color: #990000">|&lt;</span>h1<span style="color: #990000">&gt;</span><span style="color: #009900">This</span> is simple<span style="color: #990000">|]</span></tt></pre></div></div>
+<div class="paragraph"><p>不是每一条路由都像<span class="monospaced">HomeR</span>这么简单。以之前的<span class="monospaced">PersonR</span>路由为例。人名需要传递
+给处理函数。这种传递非常直接，但愿也很直观。比如：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE OverloadedStrings #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE QuasiQuotes       #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TemplateHaskell   #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TypeFamilies      #-}</span></span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           Data<span style="color: #990000">.</span><span style="color: #009900">Text</span> <span style="color: #990000">(</span><span style="color: #009900">Text</span><span style="color: #990000">)</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span> qualified Data<span style="color: #990000">.</span><span style="color: #009900">Text</span> as <span style="color: #009900">T</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           <span style="color: #009900">Yesod</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">App</span> <span style="color: #990000">=</span> <span style="color: #009900">App</span>
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">Yesod</span> <span style="color: #009900">App</span>
+
+mkYesod <span style="color: #FF0000">"App"</span> <span style="color: #990000">[</span>parseRoutes<span style="color: #990000">|</span>
+<span style="color: #990000">/</span>person<span style="color: #990000">/#</span><span style="color: #009900">Text</span> <span style="color: #009900">PersonR</span> <span style="color: #009900">GET</span>
+<span style="color: #990000">/</span>year<span style="color: #990000">/#</span><span style="color: #009900">Integer</span><span style="color: #990000">/</span>month<span style="color: #990000">/#</span><span style="color: #009900">Text</span><span style="color: #990000">/</span>day<span style="color: #990000">/#</span><span style="color: #009900">Int</span> <span style="color: #009900">DateR</span>
+<span style="color: #990000">/</span>wiki<span style="color: #990000">/*</span><span style="color: #009900">Texts</span> <span style="color: #009900">WikiR</span> <span style="color: #009900">GET</span>
+<span style="color: #990000">|]</span>
+
+getPersonR <span style="color: #990000">::</span> <span style="color: #009900">Text</span> <span style="color: #990000">-&gt;</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+getPersonR name <span style="color: #990000">=</span> defaultLayout <span style="color: #990000">[</span>whamlet<span style="color: #990000">|&lt;</span>h1<span style="color: #990000">&gt;</span><span style="color: #009900">Hello</span> <span style="color: #990000">#{</span>name<span style="color: #990000">}!|]</span>
+
+handleDateR <span style="color: #990000">::</span> <span style="color: #009900">Integer</span> <span style="color: #990000">-&gt;</span> <span style="color: #009900">Text</span> <span style="color: #990000">-&gt;</span> <span style="color: #009900">Int</span> <span style="color: #990000">-&gt;</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Text</span> <span style="font-style: italic"><span style="color: #9A1900">-- text/plain</span></span>
+handleDateR year month day <span style="color: #990000">=</span>
+    return <span style="color: #990000">$</span>
+        T<span style="color: #990000">.</span>concat <span style="color: #990000">[</span>month<span style="color: #990000">,</span> <span style="color: #FF0000">" "</span><span style="color: #990000">,</span> T<span style="color: #990000">.</span>pack <span style="color: #990000">$</span> show day<span style="color: #990000">,</span> <span style="color: #FF0000">", "</span><span style="color: #990000">,</span> T<span style="color: #990000">.</span>pack <span style="color: #990000">$</span> show year<span style="color: #990000">]</span>
+
+getWikiR <span style="color: #990000">::</span> <span style="color: #990000">[</span><span style="color: #009900">Text</span><span style="color: #990000">]</span> <span style="color: #990000">-&gt;</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Text</span>
+getWikiR <span style="color: #990000">=</span> return <span style="color: #990000">.</span> T<span style="color: #990000">.</span>unwords
+
+main <span style="color: #990000">::</span> <span style="color: #009900">IO</span> <span style="color: #990000">()</span>
+main <span style="color: #990000">=</span> warp <span style="color: #993399">3000</span> <span style="color: #009900">App</span></tt></pre></div></div>
+<div class="paragraph"><p>参数的类型与路由声明中段的类型一致，顺序也一致。另外，注意我们既能用<span class="monospaced">Html</span>也
+能用<span class="monospaced">Text</span>作返回值。</p></div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_处理函数">处理函数</h3>
+<div class="paragraph"><p>因为你写的大部分代码都会在<span class="monospaced">Handler</span>这个monad里，花点时间更好的弄懂它非常重要
+。本章剩余部分会简要介绍<span class="monospaced">Handler</span> monad中一些最常用的函数。我特意<em>没有</em>涉
+及会话(sesson)相关的函数；它们会在“会话”一章中讲解。</p></div>
+<div class="sect3">
+<h4 id="_应用程序的信息">应用程序的信息</h4>
+<div class="paragraph"><p>有许多函数可以用来返回你应用程序的总体信息，而不针对个别请求。下面就是一些：</p></div>
+<div class="dlist"><dl>
+<dt class="hdlist1">
+getYesod
+</dt>
+<dd>
+<p>
+返回你应用的基础类型值。如果你将配置信息存储在基础数据类型中，你可
+能会经常用到这个函数。
+</p>
+</dd>
+<dt class="hdlist1">
+getUrlRender
+</dt>
+<dd>
+<p>
+返回URL呈现函数，URL呈现函数将类型安全URL转换为<span class="monospaced">Text</span>。大部分
+时间，Yesod会自动调用它(Hamlet中就是这样)，但有时候你还是需要直接调用它。
+</p>
+</dd>
+<dt class="hdlist1">
+getUrlRenderParams
+</dt>
+<dd>
+<p>
+<span class="monospaced">getUrlRender</span>的变体，它返回的呈现函数将类型安全URL和一
+列请求参数转换成<span class="monospaced">Text</span>。这个函数会在需要时进行百分号编码(percent-encoding)。
+</p>
+</dd>
+</dl></div>
+</div>
+<div class="sect3">
+<h4 id="_请求信息">请求信息</h4>
+<div class="paragraph"><p>一个请求中最常用的信息是请求路径、请求参数和<span class="monospaced">POST</span>表单数据。其中第一个如上所
+述，是由路由处理的。其它两个最好是用表单模块来处理。</p></div>
+<div class="paragraph"><p>虽然这么说，但有时你还是需要获取裸数据。为此，Yesod提供了<span class="monospaced">YesodRequest</span>类型
+以及<span class="monospaced">getRequest</span>函数来得到裸数据。它能完全访问GET请求参数、cookies以及偏好语
+言。还有一些辅助函数能让查询更容易，比如<span class="monospaced">lookupGetParam</span>、<span class="monospaced">lookupCookie</span>和
+<span class="monospaced">languages</span>。要访问POST请求的裸数据，你可以用<span class="monospaced">runRequestBody</span>。</p></div>
+<div class="paragraph"><p>如果你还需要更多裸数据，比如请求报头，你可以用<span class="monospaced">waiRequest</span>从WAI(Web
+Application Interface)获取请求值。更多详情可以查阅“WAI附录“。</p></div>
+</div>
+<div class="sect3">
+<h4 id="_短路函数_short_circuiting">短路函数(Short Circuiting)</h4>
+<div class="paragraph"><p>下面几个函数可以立即结束执行处理函数，将结果返回给用户。</p></div>
+<div class="dlist"><dl>
+<dt class="hdlist1">
+redirect
+</dt>
+<dd>
+<p>
+给用户返回重定义(303返回)。如果你想返回其它的状态码(比如permanent
+301 redirect)，可以用<span class="monospaced">redirectWith</span>函数。
+</p>
+</dd>
+</dl></div>
+<div class="admonitionblock">
+<table><tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+<div class="paragraph"><p>Yesod给HTTP/1.1用户返回303，给HTTP/1.0用户返回302。你可以查阅HTTP规范了解详情
+。</p></div>
+</td>
+</tr></table>
+</div>
+<div class="dlist"><dl>
+<dt class="hdlist1">
+notFound
+</dt>
+<dd>
+<p>
+返回404。如果用户请求的数据在数据库中不存在，就用这个。
+</p>
+</dd>
+<dt class="hdlist1">
+permissionDenied
+</dt>
+<dd>
+<p>
+返回403，以及特定的错误信息。
+</p>
+</dd>
+<dt class="hdlist1">
+invalidArgs
+</dt>
+<dd>
+<p>
+返回400，以及无效的参数。
+</p>
+</dd>
+<dt class="hdlist1">
+sendFile
+</dt>
+<dd>
+<p>
+从文件系统返回指定的文件内容。这是发送静态文件的推荐方法，因为底层
+的WAI处理函数可能会将其优化为系统函数(system call)<span class="monospaced">sendfile</span>。因此，使用
+<span class="monospaced">readFile</span>发送静态文件是不必要的。
+</p>
+</dd>
+<dt class="hdlist1">
+sendResponse
+</dt>
+<dd>
+<p>
+返回正常的200状态码。这只是为了从深层嵌套的代码中迅速返回的便捷
+函数。参数可以是任意<span class="monospaced">ToTypedContent</span>的实例。
+</p>
+</dd>
+<dt class="hdlist1">
+sendWaiResponse
+</dt>
+<dd>
+<p>
+当你需要到底层发送裸WAI返回时使用。这对于创建流响应
+(streaming response)或服务器发送事件(server-sent event)等特别有用。
+</p>
+</dd>
+</dl></div>
+</div>
+<div class="sect3">
+<h4 id="_http响应的报头">HTTP响应的报头</h4>
+<div class="dlist"><dl>
+<dt class="hdlist1">
+setCookie
+</dt>
+<dd>
+<p>
+在客户端设置一个cookie。这个函数将cookie的时效设为几分钟，而不是设
+定一个过期日期。记住，直到下一次请求你才能用<span class="monospaced">lookupCookie</span>查看该cookie的值。
+</p>
+</dd>
+<dt class="hdlist1">
+deleteCookie
+</dt>
+<dd>
+<p>
+让客户端删除一个cookie。同样，直到下一次请求，<span class="monospaced">lookupCookie</span>才
+不会有该cookie值。
+</p>
+</dd>
+<dt class="hdlist1">
+setHeader
+</dt>
+<dd>
+<p>
+设置任意的HTTP头。
+</p>
+</dd>
+<dt class="hdlist1">
+setLanguage
+</dt>
+<dd>
+<p>
+设置用户偏好语言，会成为<span class="monospaced">languages</span>函数的返回值。
+</p>
+</dd>
+<dt class="hdlist1">
+cacheSeconds
+</dt>
+<dd>
+<p>
+设置Cache-Control头来表示该响应被缓存多少秒。如果你在
+<a href="http://www.varnish-cache.org">服务器上使用varnish</a>.
+这会非常有用。
+</p>
+</dd>
+<dt class="hdlist1">
+neverExpires
+</dt>
+<dd>
+<p>
+将Expires头设置为2037年。你可以对永不过期的内容设置这个头，比如
+针对以内容哈希值为文件名的请求。
+</p>
+</dd>
+<dt class="hdlist1">
+alreadyExpired
+</dt>
+<dd>
+<p>
+将Expires头设置为过去的时间。
+</p>
+</dd>
+<dt class="hdlist1">
+expiresAt
+</dt>
+<dd>
+<p>
+将Expires头设置为指定的日期/时间。
+</p>
+</dd>
+</dl></div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_小结">小结</h3>
+<div class="paragraph"><p>路由和分发可以说是Yesod的核心：我们的类型安全URL就是在这里定义的，我们写的大部
+分代码会在<span class="monospaced">Handler</span> monad里。本章涉及了Yesod一些最重要和最核心的概念，你把这
+些好好消化非常重要。</p></div>
+<div class="paragraph"><p>本章也提到了一些更复杂的Yesod话题，我们会在后续章节讲解。但只使用你目前学到的
+知识，应该已经能够写出相当复杂的web应用了。</p></div>
+</div>
+</div>
+</div>
+</div>
+<div id="footnotes"><hr /></div>
+<div id="footer">
+<div id="footer-text">
+Last updated 2014-01-18 21:50:53 CST <br/>
+本站全部内容以MIT和Creative Commons 4.0许可证发布。详情请看<a href="https://raw.github.com/rnons/yesodbook-zh/master/LICENSE">许可证文件</a>。
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>

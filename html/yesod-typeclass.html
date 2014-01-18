@@ -1,0 +1,630 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+    "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta name="generator" content="AsciiDoc 8.6.8" />
+<title></title>
+<link rel="stylesheet" href="/static/asciidoc.css" type="text/css" />
+<link rel="stylesheet" href="/static/layout.css" type="text/css" />
+<script type="text/javascript" src="/static/asciidoc.js"></script>
+<script type="text/javascript">
+/*<![CDATA[*/
+asciidoc.install(2);
+/*]]>*/
+</script>
+</head>
+<body>
+<div id="layout-banner">
+  <div id="layout-logo">
+    <div id="logo-image"></div>
+    <div id="logo-title">Yesod Book中文翻译</div>
+  </div>
+  <div id="logo-description">Yesod是一个Haskell写的web框架，用于开发类型安全、RESTful、高性能的web应用</div>
+</div>
+<div id="layout-menu-box">
+<div id="layout-menu">
+  <div><a href="index.html">目录</a></div>
+  <div id="seperator"></div>
+  <div><a href="/html/introduction.html">引言</a></div>
+  <div><a href="/html/haskell.html">Haskell</a></div>
+  <div><a href="/html/basics.html">基础</a></div>
+  <div><a href="/html/shakespearean-templates.html">莎氏模板</a></div>
+  <div><a href="/html/widgets.html">控件</a></div>
+  <div><a href="/html/yesod-typeclass.html">Yesod型类</a></div>
+  <div><a href="/html/routing-and-handlers.html">路由和处理函数</a></div>
+  <div><a href="/html/forms.html">表单</a></div>
+  <div><a href="/html/sessions.html">会话</a></div>
+  <div><a href="/html/persistent.html">Persistent</a></div>
+  <div><a href="/html/deploying-your-webapp.html">部署你的web应用</a></div>
+  <div id="seperator"></div>
+</div>
+</div>
+<div id="layout-content-box">
+<div id="layout-content">
+<div id="header">
+<div id="toc">
+  <div id="toctitle">本章目录</div>
+  <noscript><p><b>JavaScript must be enabled in your browser to display the table of contents.</b></p></noscript>
+</div>
+</div>
+<div id="content">
+<div class="sect1">
+<h2 id="_yesod型类_typeclass">Yesod型类(Typeclass)</h2>
+<div class="sectionbody">
+<div class="paragraph"><p>我们的每一个Yesod应用都需要实例化<span class="monospaced">Yesod</span>型类。到目前为止，我们只见到了
+<span class="monospaced">defaultLayout</span>方法。本章中，我们会讲解<span class="monospaced">Yesod</span>型类的很多方法。</p></div>
+<div class="paragraph"><p><span class="monospaced">Yesod</span>型类是给应用定义配置信息的集中点。每个配置都有默认的定义，默认值通常也
+是对的。但为了构建强大、定制的应用，你通常还是得重定义(override)其中一些方法。</p></div>
+<div class="admonitionblock">
+<table><tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+<div class="paragraph"><p>我们常常被问到一个问题，“为什么用型类而不是记录(record type)？使用型类有两大好
+处：</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+Yesod型类里的方法经常需要调用型类里的其它方法。在型类中，这种用法很普通。但
+  对于记录，就会更复杂。
+</p>
+</li>
+<li>
+<p>
+型类的语法更简洁。我们想提供默认的实现，让用户在需要的时候重定义部分函数。
+  型类对此的解决方法简单且语法漂亮(syntactically nice)。而记录会有更大的开销
+  (overhead)。
+</p>
+</li>
+</ul></div>
+</td>
+</tr></table>
+</div>
+<div class="sect2">
+<h3 id="_呈现_rendering_和解析_parsing_url">呈现(Rendering)和解析(Parsing)URL</h3>
+<div class="paragraph"><p>我们已经提到Yesod能自动将类型安全URL转换为可插入HTML页面的文本形式URL。假设我
+们有这样的路由定义：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt>mkYesod <span style="color: #FF0000">"MyApp"</span> <span style="color: #990000">[</span>parseRoutes<span style="color: #990000">|</span>
+<span style="color: #990000">/</span>some<span style="color: #990000">/</span>path <span style="color: #009900">SomePathR</span> <span style="color: #009900">GET</span>
+<span style="color: #990000">]</span></tt></pre></div></div>
+<div class="paragraph"><p>如果我们把<span class="monospaced">SomePathR</span>写在hamlet模板里，Yesod是怎么呈现它的呢？Yesod总是会去
+构造<em>绝对(absolute)</em>路径URL。如果我们要创建XML站点地图和Atom源，或是要发送邮
+件，绝对路径会特别有用。但为了构造绝对路径URL，我们需要知道应用的域名。</p></div>
+<div class="paragraph"><p>你可能认为我们可以从用户请求中得到域名信息，但我们还是需要知道端口号。即使我们
+从请求知道了端口号，那到底是HTTP还是HTTPS呢？即使你都知道了，这种方法意味着用
+户以不同的方式提交请求，会导致生成不同的URL。举例来说，用户连接到“example.com”
+或“www.example.com”会导致我们生成不同的URL。对于搜索引擎优化(Search Engine
+Optimization)，我们希望能巩固(consolidate)一个标准的(canonical)URL。</p></div>
+<div class="paragraph"><p>最后，Yesod对你从<em>哪里</em>托管应用不做任何假设。比如，我可能有一个大体上静态的
+站点(<a href="http://static.example.com/)，但我想在/wiki/路径�">http://static.example.com/)，但我想在/wiki/路径�</a>��入一个Yesod驱动的维基子
+站。应用无法确知托管维基子站的路径。所以与其猜测，Yesod需要你告诉它应用的根路
+径。</p></div>
+<div class="paragraph"><p>以wiki子站为例，你需要这样写你的<span class="monospaced">Yesod</span>实例：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">Yesod</span> <span style="color: #009900">MyWiki</span> <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    approot <span style="color: #990000">=</span> <span style="color: #009900">ApprootStatic</span> <span style="color: #FF0000">"http://static.example.com/wiki"</span></tt></pre></div></div>
+<div class="paragraph"><p>注意链接最后没有接斜线。然后，当Yesod要给<span class="monospaced">SomePathR</span>构造URL时，它能确定
+<span class="monospaced">SomePathR</span>的相对路径是<span class="monospaced">/some/path</span>，将其追加到approot，就得到了
+<span class="monospaced">http://static.example.com/wiki/some/path</span>。</p></div>
+<div class="paragraph"><p><span class="monospaced">approot</span>的默认值是<span class="monospaced">ApprootRelative</span>，它的意思是&#8216;`不要加任何前缀&#8217;'。这种情
+况下，生成的URL会是<span class="monospaced">/some/path</span>。如果你的程序托管在域名的根路径，这种方法对
+于程序内部链接可以很好工作。但如果有需要用到绝对路径URL的情况(比如发送邮件)，
+最好还是使用<span class="monospaced">ApprootStatic</span>。</p></div>
+<div class="paragraph"><p>就像别的常用配置一样，脚手架站点已经帮你配置好。如果你使用脚手架项目，你可以从
+配置文件修改approot值。</p></div>
+<div class="sect3">
+<h4 id="_joinpath">joinPath</h4>
+<div class="paragraph"><p>为了将一个类型安全URL转换为文本值，Yesod使用了两个辅助函数。第一个是
+<span class="monospaced">RenderRoute</span>类中的<span class="monospaced">renderRoute</span>方法。每个类型安全URL都是这个类的实例。
+<span class="monospaced">renderRoute</span>将一个值转换成一列路径段(path pieces)。比如，上例中的
+<span class="monospaced">SomePathR</span>会被转换成<span class="monospaced">["some", "path"]</span>。</p></div>
+<div class="admonitionblock">
+<table><tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">实际上，<span class="monospaced">renderRoute</span>既生成路径段，也生成一列请求参数。默认的
+<span class="monospaced">renderRoute</span>实现总是提供空的请求参数列表。不过你可以重定义它。一个显著的例
+子是静态子站(static subsite)，它会将文件内容的哈希值作为请求参数，这样便于缓存
+。</td>
+</tr></table>
+</div>
+<div class="paragraph"><p>另一个辅助函数是Yesod类中的<span class="monospaced">joinPath</span>。这个函数有四个输入参数：</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+基础类型值(foundation value)
+</p>
+</li>
+<li>
+<p>
+应用根路径
+</p>
+</li>
+<li>
+<p>
+一列路径段
+</p>
+</li>
+<li>
+<p>
+一列请求参数
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>它返回文本形式的URL。默认实现就是&#8216;`正常的&#8217;'：它用斜线分隔路径段，追加在应用根
+路径后，最后追加请求参数。</p></div>
+<div class="paragraph"><p>如果你对默认的URL呈现结果满意，那你不需要修改它。尽管如此，如果你想修改URL呈现
+结果，比如在最后加一个斜线，那就应该在这里修改。</p></div>
+</div>
+<div class="sect3">
+<h4 id="_cleanpath">cleanPath</h4>
+<div class="paragraph"><p><span class="monospaced">joinPath</span>的反面是<span class="monospaced">cleanPath</span>。让我们来看看分发过程(dispatch process)中是
+怎么用到<span class="monospaced">cleanPath</span>的：</p></div>
+<div class="olist arabic"><ol class="arabic">
+<li>
+<p>
+用户请求的路径被分离成一串路径段。
+</p>
+</li>
+<li>
+<p>
+将一串路径段传递给<span class="monospaced">cleanPath</span>函数。
+</p>
+</li>
+<li>
+<p>
+如果<span class="monospaced">cleanPath</span>说要重定向(<span class="monospaced">Left</span>返回值)，那将301返回值发送给用户。这被用
+  来强制使用标准URL(canonical URL)，比如移除多余的斜线。
+</p>
+</li>
+<li>
+<p>
+其余情况，我们尝试分发<span class="monospaced">cleanPath</span>的结果(<span class="monospaced">Right</span>返回值)，如果成功(有相应
+  的处理函数)，则发送响应。否则，发送404。
+</p>
+</li>
+</ol></div>
+<div class="paragraph"><p>这种结构允许子站完全控制它们的URL显示方式，同时允许主站修改URL。作为一个简单的
+例子，让我们看看可以怎样修改Yesod来让URL总是以斜线结尾：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE MultiParamTypeClasses #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE OverloadedStrings     #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE QuasiQuotes           #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TemplateHaskell       #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TypeFamilies          #-}</span></span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           Blaze<span style="color: #990000">.</span>ByteString<span style="color: #990000">.</span>Builder<span style="color: #990000">.</span>Char<span style="color: #990000">.</span><span style="color: #009900">Utf8</span> <span style="color: #990000">(</span>fromText<span style="color: #990000">)</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           Control<span style="color: #990000">.</span><span style="color: #009900">Arrow</span>                      <span style="color: #990000">((***))</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           Data<span style="color: #990000">.</span><span style="color: #009900">Monoid</span>                        <span style="color: #990000">(</span>mappend<span style="color: #990000">)</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span> qualified Data<span style="color: #990000">.</span><span style="color: #009900">Text</span>                          as <span style="color: #009900">T</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span> qualified Data<span style="color: #990000">.</span>Text<span style="color: #990000">.</span><span style="color: #009900">Encoding</span>                 as <span style="color: #009900">TE</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           Network<span style="color: #990000">.</span>HTTP<span style="color: #990000">.</span><span style="color: #009900">Types</span>                 <span style="color: #990000">(</span>encodePath<span style="color: #990000">)</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           <span style="color: #009900">Yesod</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">Slash</span> <span style="color: #990000">=</span> <span style="color: #009900">Slash</span>
+
+mkYesod <span style="color: #FF0000">"Slash"</span> <span style="color: #990000">[</span>parseRoutes<span style="color: #990000">|</span>
+<span style="color: #990000">/</span> <span style="color: #009900">RootR</span> <span style="color: #009900">GET</span>
+<span style="color: #990000">/</span>foo <span style="color: #009900">FooR</span> <span style="color: #009900">GET</span>
+<span style="color: #990000">|]</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">Yesod</span> <span style="color: #009900">Slash</span> <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    joinPath <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> ar pieces' qs' <span style="color: #990000">=</span>
+        fromText ar <span style="color: #990000">`</span>mappend<span style="color: #990000">`</span> encodePath pieces qs
+      <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+        qs <span style="color: #990000">=</span> map <span style="color: #990000">(</span>TE<span style="color: #990000">.</span>encodeUtf8 <span style="color: #990000">***</span> go<span style="color: #990000">)</span> qs'
+        go <span style="color: #FF0000">""</span> <span style="color: #990000">=</span> <span style="color: #009900">Nothing</span>
+        go x <span style="color: #990000">=</span> <span style="color: #009900">Just</span> <span style="color: #990000">$</span> TE<span style="color: #990000">.</span>encodeUtf8 x
+        pieces <span style="color: #990000">=</span> pieces' <span style="color: #990000">++++</span> <span style="color: #990000">[</span><span style="color: #FF0000">""</span><span style="color: #990000">]</span>
+
+    <span style="font-style: italic"><span style="color: #9A1900">-- 我们想保证使用标准URL。因此，如果URL不是以斜线结尾，则重定向。</span></span>
+    <span style="font-style: italic"><span style="color: #9A1900">-- 但空路径维持不变。</span></span>
+    cleanPath <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="color: #990000">[]</span> <span style="color: #990000">=</span> <span style="color: #009900">Right</span> <span style="color: #990000">[]</span>
+    cleanPath <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> s
+        <span style="color: #990000">|</span> dropWhile <span style="color: #990000">(</span>not <span style="color: #990000">.</span> T<span style="color: #990000">.</span>null<span style="color: #990000">)</span> s <span style="color: #990000">==</span> <span style="color: #990000">[</span><span style="color: #FF0000">""</span><span style="color: #990000">]</span> <span style="color: #990000">=</span> <span style="font-style: italic"><span style="color: #9A1900">-- 唯一的空路径是最后一个</span></span>
+            <span style="color: #009900">Right</span> <span style="color: #990000">$</span> init s
+        <span style="font-style: italic"><span style="color: #9A1900">-- 因为joinPath会在最后追加斜线，我们只需移除空路径。</span></span>
+        <span style="color: #990000">|</span> otherwise <span style="color: #990000">=</span> <span style="color: #009900">Left</span> <span style="color: #990000">$</span> filter <span style="color: #990000">(</span>not <span style="color: #990000">.</span> T<span style="color: #990000">.</span>null<span style="color: #990000">)</span> s
+
+getRootR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+getRootR <span style="color: #990000">=</span> defaultLayout
+    <span style="color: #990000">[</span>whamlet<span style="color: #990000">|</span>
+        <span style="color: #990000">&lt;</span>p<span style="color: #990000">&gt;</span>
+            <span style="color: #990000">&lt;</span>a href<span style="color: #990000">=@{</span><span style="color: #009900">RootR</span><span style="color: #990000">}&gt;</span><span style="color: #009900">RootR</span>
+        <span style="color: #990000">&lt;</span>p<span style="color: #990000">&gt;</span>
+            <span style="color: #990000">&lt;</span>a href<span style="color: #990000">=@{</span><span style="color: #009900">FooR</span><span style="color: #990000">}&gt;</span><span style="color: #009900">FooR</span>
+    <span style="color: #990000">|]</span>
+
+getFooR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+getFooR <span style="color: #990000">=</span> getRootR
+
+main <span style="color: #990000">::</span> <span style="color: #009900">IO</span> <span style="color: #990000">()</span>
+main <span style="color: #990000">=</span> warp <span style="color: #993399">3000</span> <span style="color: #009900">Slash</span></tt></pre></div></div>
+<div class="paragraph"><p>首先，让我们看看<span class="monospaced">joinPath</span>的实现。这基本上是Yesod的默认实现，只有一个不同：
+我们在最后加了个空字符串。当处理路径段时，一个空字符串会追加另一个斜线。所以增
+加空字符串会强制路径以斜线结尾。</p></div>
+<div class="paragraph"><p><span class="monospaced">cleanPath</span>更有技巧一些。首先，我们检查是否为空路径，如果是则往下传递。我们
+使用Right值来表示不需要重定向。下一条语句实际上是检查可能出现的两种不同的URL问
+题：</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+有两个紧挨的斜线，在我们的路径段中会变成空字符串。
+</p>
+</li>
+<li>
+<p>
+路径不以斜线结尾，导致路径段最后不是空字符串。
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>假设这两种情况都不符合，那只有最后一段路径为空，我们就可以基于此进行分发。如果
+不是这样，我们就要重定向到一个标准URL。这种情况下，我们把所有空段都剔除，也不
+在最后追加斜线，因为<span class="monospaced">joinPath</span>会为我们加。</p></div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_defaultlayout">defaultLayout</h3>
+<div class="paragraph"><p>大部分网站都会给所有页面应用同一个模板。<span class="monospaced">defaultLayout</span>就是做这个的。你当然
+可以定义自己的函数，然后调用它作为模板，不过如果你重定义<span class="monospaced">defaultLayout</span>，所
+有Yesod生成的页面(错误页面、登录页面)都会自动应用(新的)模板样式。</p></div>
+<div class="paragraph"><p>要重定义也很直接：我们用<span class="monospaced">widgetToPageContent</span>将一个<span class="monospaced">Widget</span>转换为标题、头
+部和正文，然后用<span class="monospaced">giveUrlRenderer</span>将Hamlet模板转换为<span class="monospaced">Html</span>值。我们甚至可以
+在<span class="monospaced">defaultLayout</span>中增加其它控件，比如Lucius模板。更多信息，参见之前“控件”那
+一章。</p></div>
+<div class="paragraph"><p>如果你使用的是脚手架站点，你可以修改<span class="monospaced">templates/default-layout.hamlet</span>文件和
+<span class="monospaced">templates/default-layout-wrapper.hamlet</span>文件。</p></div>
+<div class="sect3">
+<h4 id="_getmessage">getMessage</h4>
+<div class="paragraph"><p>虽然我们还没讲到会话(session)，但我想在这里提一下<span class="monospaced">getMessage</span>函数。Web开发的
+一个常见模式是在一个处理函数中设定一条消息，然后在另一个处理函数中显示消息。比
+如说，如果用户<span class="monospaced">POST</span>了一个表单，你可能将他/她重定向到另一个页面，并附带&#8216;`表
+单提交完成&#8217;'的消息。这被称为
+<a href="http://en.wikipedia.org/wiki/Post/Redirect/Get">Post/Redirect/Get</a>模式。</p></div>
+<div class="paragraph"><p>为了能做到这一点，Yesod自带了一对函数：<span class="monospaced">setMessage</span>在用户会话中设置一条消息
+，<span class="monospaced">getMessage</span>接收消息(并从会话中清除它，以免消息重复显示)。建议你把
+<span class="monospaced">getMessage</span>的结果放到<span class="monospaced">defaultLayout</span>里。比如：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE OverloadedStrings     #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE QuasiQuotes           #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TemplateHaskell       #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TypeFamilies          #-}</span></span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           <span style="color: #009900">Yesod</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span> Data<span style="color: #990000">.</span><span style="color: #009900">Time</span> <span style="color: #990000">(</span>getCurrentTime<span style="color: #990000">)</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">App</span> <span style="color: #990000">=</span> <span style="color: #009900">App</span>
+
+mkYesod <span style="color: #FF0000">"App"</span> <span style="color: #990000">[</span>parseRoutes<span style="color: #990000">|</span>
+<span style="color: #990000">/</span> <span style="color: #009900">HomeR</span> <span style="color: #009900">GET</span>
+<span style="color: #990000">|]</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">Yesod</span> <span style="color: #009900">App</span> <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    defaultLayout contents <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+        <span style="color: #009900">PageContent</span> title headTags bodyTags <span style="color: #990000">&lt;-</span> widgetToPageContent contents
+        mmsg <span style="color: #990000">&lt;-</span> getMessage
+        giveUrlRenderer <span style="color: #990000">[</span>hamlet<span style="color: #990000">|</span>
+            <span style="color: #990000">$</span>doctype <span style="color: #993399">5</span>
+
+            <span style="color: #990000">&lt;</span>html<span style="color: #990000">&gt;</span>
+                <span style="color: #990000">&lt;</span>head<span style="color: #990000">&gt;</span>
+                    <span style="color: #990000">&lt;</span>title<span style="color: #990000">&gt;#{</span>title<span style="color: #990000">}</span>
+                    <span style="color: #990000">^{</span>headTags<span style="color: #990000">}</span>
+                <span style="color: #990000">&lt;</span>body<span style="color: #990000">&gt;</span>
+                    <span style="color: #990000">$</span>maybe msg <span style="color: #990000">&lt;-</span> mmsg
+                        <span style="color: #990000">&lt;</span>div <span style="color: #990000">#</span>message<span style="color: #990000">&gt;#{</span>msg<span style="color: #990000">}</span>
+                    <span style="color: #990000">^{</span>bodyTags<span style="color: #990000">}</span>
+        <span style="color: #990000">|]</span>
+
+getHomeR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+getHomeR <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+    now <span style="color: #990000">&lt;-</span> liftIO getCurrentTime
+    setMessage <span style="color: #990000">$</span> toHtml <span style="color: #990000">$</span> <span style="color: #FF0000">"You previously visited at: "</span> <span style="color: #990000">++++</span> show now
+    defaultLayout <span style="color: #990000">[</span>whamlet<span style="color: #990000">|&lt;</span>p<span style="color: #990000">&gt;</span><span style="color: #009900">Try</span> refreshing<span style="color: #990000">|]</span>
+
+main <span style="color: #990000">::</span> <span style="color: #009900">IO</span> <span style="color: #990000">()</span>
+main <span style="color: #990000">=</span> warp <span style="color: #993399">3000</span> <span style="color: #009900">App</span></tt></pre></div></div>
+<div class="paragraph"><p>我们将在会话那一章更详细的讨论<span class="monospaced">getMessage</span>/<span class="monospaced">setMessage</span>。</p></div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_自定义错误页面">自定义错误页面</h3>
+<div class="paragraph"><p>专业网站的标志之一是精心设计的错误页面。Yesod会自动用你的<span class="monospaced">defaultLayout</span>来显
+示错误页面。但有时，你会想更进一步。这种情况下，你需要重定义<span class="monospaced">errorHandler</span>方
+法：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE OverloadedStrings     #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE QuasiQuotes           #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TemplateHaskell       #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TypeFamilies          #-}</span></span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           <span style="color: #009900">Yesod</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">App</span> <span style="color: #990000">=</span> <span style="color: #009900">App</span>
+
+mkYesod <span style="color: #FF0000">"App"</span> <span style="color: #990000">[</span>parseRoutes<span style="color: #990000">|</span>
+<span style="color: #990000">/</span> <span style="color: #009900">HomeR</span> <span style="color: #009900">GET</span>
+<span style="color: #990000">/</span>error <span style="color: #009900">ErrorR</span> <span style="color: #009900">GET</span>
+<span style="color: #990000">/</span>not<span style="color: #990000">-</span>found <span style="color: #009900">NotFoundR</span> <span style="color: #009900">GET</span>
+<span style="color: #990000">|]</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">Yesod</span> <span style="color: #009900">App</span> <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    errorHandler <span style="color: #009900">NotFound</span> <span style="color: #990000">=</span> fmap toTypedContent <span style="color: #990000">$</span> defaultLayout <span style="color: #990000">$</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+        setTitle <span style="color: #FF0000">"Request page not located"</span>
+        toWidget <span style="color: #990000">[</span>hamlet<span style="color: #990000">|</span>
+<span style="color: #990000">&lt;</span>h1<span style="color: #990000">&gt;</span><span style="color: #009900">Not</span> <span style="color: #009900">Found</span>
+<span style="color: #990000">&lt;</span>p<span style="color: #990000">&gt;</span><span style="color: #009900">We</span> apologize for the inconvenience<span style="color: #990000">,</span> but the requested page could not be located<span style="color: #990000">.</span>
+<span style="color: #990000">|]</span>
+    errorHandler other <span style="color: #990000">=</span> defaultErrorHandler other
+
+getHomeR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+getHomeR <span style="color: #990000">=</span> defaultLayout
+    <span style="color: #990000">[</span>whamlet<span style="color: #990000">|</span>
+        <span style="color: #990000">&lt;</span>p<span style="color: #990000">&gt;</span>
+            <span style="color: #990000">&lt;</span>a href<span style="color: #990000">=@{</span><span style="color: #009900">ErrorR</span><span style="color: #990000">}&gt;</span><span style="color: #009900">Internal</span> server error
+            <span style="color: #990000">&lt;</span>a href<span style="color: #990000">=@{</span><span style="color: #009900">NotFoundR</span><span style="color: #990000">}&gt;</span><span style="color: #009900">Not</span> found
+    <span style="color: #990000">|]</span>
+
+getErrorR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #990000">()</span>
+getErrorR <span style="color: #990000">=</span> error <span style="color: #FF0000">"This is an error"</span>
+
+getNotFoundR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #990000">()</span>
+getNotFoundR <span style="color: #990000">=</span> notFound
+
+main <span style="color: #990000">::</span> <span style="color: #009900">IO</span> <span style="color: #990000">()</span>
+main <span style="color: #990000">=</span> warp <span style="color: #993399">3000</span> <span style="color: #009900">App</span></tt></pre></div></div>
+<div class="paragraph"><p>这里我们定义了一个404错误页面。我们可以将其它错误类型交给
+<span class="monospaced">defaultErrorHandler</span>处理。由于类型限制，我们需要在函数开使时使用<span class="monospaced">fmap
+toTypedContent</span>，然后你就可以像写一个普通处理函数那样写了。(我们会在下一章详
+述<span class="monospaced">TypedContent</span>。)</p></div>
+<div class="paragraph"><p>事实上，你甚至可以使用特殊的响应，比如重定向：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt>    errorHandler <span style="color: #009900">NotFound</span> <span style="color: #990000">=</span> redirect <span style="color: #009900">HomeR</span>
+    errorHandler other <span style="color: #990000">=</span> defaultErrorHandler other</tt></pre></div></div>
+<div class="admonitionblock">
+<table><tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">虽然你<em>可以</em>这么做，但我真的不建议这样。404就应该是404。</td>
+</tr></table>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_外部css和javascript">外部CSS和Javascript</h3>
+<div class="admonitionblock">
+<table><tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">这里描述的功能都自动包含在脚手架项目里，因此你不用担心要手动去实现它们。</td>
+</tr></table>
+</div>
+<div class="paragraph"><p>Yesod类里面最强大，也最吓人的方法之一是<span class="monospaced">addStaticContent</span>。记得一个控件可以
+由多个部分组成，包括CSS和Javascript。CSS/JS究竟是怎么进到用户浏览器的呢？默认
+情况下，它们分别位于页面<span class="monospaced">&lt;head&gt;</span>部分的<span class="monospaced">&lt;style&gt;</span>标签和<span class="monospaced">&lt;script&gt;</span>标签里。</p></div>
+<div class="paragraph"><p>这样很简单，但不够高效。每一次加载页面都需要重新加载CSS/JS，即使它们都没变！我
+们真正想要的是把这些内容保存在外部文件里，然后从HTML文件里引用它们。</p></div>
+<div class="paragraph"><p>这就是<span class="monospaced">addStaticContent</span>的工作。它接受三个参数：文件扩展名(<span class="monospaced">css</span>或<span class="monospaced">js</span>)
+、mime类型(<span class="monospaced">text/css</span>或<span class="monospaced">text/javascript</span>)和内容本身。它可能有三种返回值：</p></div>
+<div class="dlist"><dl>
+<dt class="hdlist1">
+Nothing
+</dt>
+<dd>
+<p>
+不保存静态文件；将内容直接嵌在HTML中。这是默认情况。
+</p>
+</dd>
+<dt class="hdlist1">
+Just (Left Text)
+</dt>
+<dd>
+<p>
+内容保存在外部文件中，使用指定的文本链接引用它。
+</p>
+</dd>
+<dt class="hdlist1">
+Just (Right (Route a, Query))
+</dt>
+<dd>
+<p>
+内容保存在外部文件中，但使用类型安全URL和请求
+参数来引用它。
+</p>
+</dd>
+</dl></div>
+<div class="paragraph"><p>如果你要把静态文件存放在外部服务器上，比如CDN或存储服务器，<span class="monospaced">Left</span>返回值会有
+用。<span class="monospaced">Right</span>返回值更常见，而且它与静态子站能很好配合。推荐给大多数应用使用，
+也是脚手架默认提供的方法。</p></div>
+<div class="admonitionblock">
+<table><tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">你可能会想：如果这是推荐的方法，为什么不让它作为默认返回值？问题在于它有
+一些前提条件并不总是满足：你的应用需要有静态子站，需要指定静态文件存放口径。</td>
+</tr></table>
+</div>
+<div class="paragraph"><p>脚手架项目中的<span class="monospaced">addStaticContent</span>帮你做了很多聪明的决定：</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+它自动用hjsmin包来最小化你的Javascript代码。
+</p>
+</li>
+<li>
+<p>
+它用文件内容的哈希值来命名文件。这意味着你可以在HTTP headers中把cache的过期
+  时间设置在很久以后，而不用担心会显示过期内容。
+</p>
+</li>
+<li>
+<p>
+此外，由于文件名是哈希值，可以保证如果有同名文件存在，就不需要重新输出文件。
+  脚手架项目会自动检查文件是否存在，如非必要避免耗费资源的磁盘写操作。
+</p>
+</li>
+</ul></div>
+</div>
+<div class="sect2">
+<h3 id="_更智能的静态文件">更智能的静态文件</h3>
+<div class="paragraph"><p>Google有一条重要的优化建议：
+<a href="http://code.google.com/speed/page-speed/docs/request.html#ServeFromCookielessDomain">
+从单独的域名托管静态文件</a>。这种方法的好处是，主域名上设置的cookie在请求静态文
+件时不需要发送，从而节省一点带宽。</p></div>
+<div class="paragraph"><p>为促成这一点，我们有<span class="monospaced">urlRenderOverride</span>方法。这个方法截取正常的URL呈现方式，
+将某些路由设成特殊值。比如，脚手架站点中它是这样定义的：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt>urlRenderOverride y <span style="color: #990000">(</span><span style="color: #009900">StaticR</span> s<span style="color: #990000">)</span> <span style="color: #990000">=</span>
+    <span style="color: #009900">Just</span> <span style="color: #990000">$</span> uncurry <span style="color: #990000">(</span>joinPath y <span style="color: #990000">(</span>Settings<span style="color: #990000">.</span>staticRoot <span style="color: #990000">$</span> settings y<span style="color: #990000">))</span> <span style="color: #990000">$</span> renderRoute s
+
+urlRenderOverride <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="color: #990000">=</span> <span style="color: #009900">Nothing</span></tt></pre></div></div>
+<div class="paragraph"><p>这意味着静态路由有一个特殊的根路径，你可以将其配置成另一个域名。这也是类型安全
+URL强大、可伸缩的一个明证：仅用一行代码，你就可以改变所有指向静态路由的链接。</p></div>
+</div>
+<div class="sect2">
+<h3 id="_验证_授权_authentication_authorization">验证/授权(Authentication/Authorization)</h3>
+<div class="paragraph"><p>对于简单的应用，在每个处理函数中检查权限是简单、便利的方法。然而，这样不方便扩
+展(scale)。最终，你需要更好的声明方法。有些系统会定义ACL、特殊的配置文件、其它
+的戏法(hocus-pocus)。在Yesod中，只用普通的Haskell即可。涉及到三个方法：</p></div>
+<div class="dlist"><dl>
+<dt class="hdlist1">
+isWriteRequest
+</dt>
+<dd>
+<p>
+判断当前请求是读操作还是写操作。默认情况下，Yesod遵循RESTful
+原则，将<span class="monospaced">GET</span>、<span class="monospaced">HEAD</span>、<span class="monospaced">OPTIONS</span>和<span class="monospaced">TRACE</span>请求视为读操作，其它请求视为
+写操作。
+</p>
+</dd>
+<dt class="hdlist1">
+isAuthorized
+</dt>
+<dd>
+<p>
+输入参数是一条路由(即类型安全URL)和一个布尔值用来表明该请求是否
+为写操作。它返回一个<span class="monospaced">AuthResult</span>值，可以是三种情况之一：
+</p>
+<div class="ulist"><ul>
+<li>
+<p>
+<span class="monospaced">Authorized</span>
+</p>
+</li>
+<li>
+<p>
+<span class="monospaced">AuthenticationRequired</span>
+</p>
+</li>
+<li>
+<p>
+<span class="monospaced">Unauthorized</span>
+</p>
+</li>
+</ul></div>
+</dd>
+</dl></div>
+<div class="paragraph"><p>默认情况下，它给所有请求返回<span class="monospaced">Authorized</span>。</p></div>
+<div class="dlist"><dl>
+<dt class="hdlist1">
+authRoute
+</dt>
+<dd>
+<p>
+如果<span class="monospaced">isAuthorized</span>返回的是<span class="monospaced">AuthenticationRequired</span>，重定向至指
+定路由。如果没有提供路由(默认情况)，返回401`&#8216;需要验证&#8217;'消息。
+</p>
+</dd>
+</dl></div>
+<div class="paragraph"><p>这些方法能很好的与yesod-auth包配合，脚手架站点使用它们来提供多种验证选项，比如
+OpenId、Mozilla Persona、email、用户名和Twitter。我们会在“验证和授权”一章详述
+。</p></div>
+</div>
+<div class="sect2">
+<h3 id="_一些简单设置">一些简单设置</h3>
+<div class="paragraph"><p>并不是Yeosd类中的每一项都很复杂。有些方法很简单，我们来看一下：</p></div>
+<div class="dlist"><dl>
+<dt class="hdlist1">
+maximumContentLength
+</dt>
+<dd>
+<p>
+为了防止拒绝服务(DoS: Denial of Server)攻击，Yeosd会限
+制请求的大小。有时，你想对某些路由解除限制(比如文件上传页面)。就应该在这里修改
+。
+</p>
+</dd>
+<dt class="hdlist1">
+fileUpload
+</dt>
+<dd>
+<p>
+基于请求的大小，决定怎么处理用户上传的文件。两种常见的方法是将文
+件储存在内存中，或是储存在临时文件中。默认情况下，小请求储存在内存里，大请求储
+存在硬盘上。
+</p>
+</dd>
+<dt class="hdlist1">
+shouldLog
+</dt>
+<dd>
+<p>
+决定一条日志信息(及其日志源和日志等级)是否需要记录成日志。这允许你
+在应用中放置大量的调试信息，而只在需要时开启日志记录。
+</p>
+</dd>
+</dl></div>
+<div class="paragraph"><p>最新的信息，请查看Yesod类的Haddock API文档。</p></div>
+</div>
+<div class="sect2">
+<h3 id="_小结">小结</h3>
+<div class="paragraph"><p>Yesod类有很多可重定义的方法，允许你配置应用。他们都是可选的，因为有合理的默认
+值。通过使用Yesod内置的<span class="monospaced">defaultLayout</span>和<span class="monospaced">getMessage</span>等方法，你可以在全网站
+应用一种统一的视觉风格，包括Yesod自动生成的页面，如错误页面和登录页面等。</p></div>
+<div class="paragraph"><p>我们在本章中没有涉及Yesod类的全部方法。要想知道全部方法，应该查看Haddock文档。</p></div>
+</div>
+</div>
+</div>
+</div>
+<div id="footnotes"><hr /></div>
+<div id="footer">
+<div id="footer-text">
+Last updated 2014-01-18 21:50:57 CST <br/>
+本站全部内容以MIT和Creative Commons 4.0许可证发布。详情请看<a href="https://raw.github.com/rnons/yesodbook-zh/master/LICENSE">许可证文件</a>。
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>

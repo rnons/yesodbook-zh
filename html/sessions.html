@@ -1,0 +1,406 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+    "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta name="generator" content="AsciiDoc 8.6.8" />
+<title></title>
+<link rel="stylesheet" href="/static/asciidoc.css" type="text/css" />
+<link rel="stylesheet" href="/static/layout.css" type="text/css" />
+<script type="text/javascript" src="/static/asciidoc.js"></script>
+<script type="text/javascript">
+/*<![CDATA[*/
+asciidoc.install(2);
+/*]]>*/
+</script>
+</head>
+<body>
+<div id="layout-banner">
+  <div id="layout-logo">
+    <div id="logo-image"></div>
+    <div id="logo-title">Yesod Book中文翻译</div>
+  </div>
+  <div id="logo-description">Yesod是一个Haskell写的web框架，用于开发类型安全、RESTful、高性能的web应用</div>
+</div>
+<div id="layout-menu-box">
+<div id="layout-menu">
+  <div><a href="index.html">目录</a></div>
+  <div id="seperator"></div>
+  <div><a href="/html/introduction.html">引言</a></div>
+  <div><a href="/html/haskell.html">Haskell</a></div>
+  <div><a href="/html/basics.html">基础</a></div>
+  <div><a href="/html/shakespearean-templates.html">莎氏模板</a></div>
+  <div><a href="/html/widgets.html">控件</a></div>
+  <div><a href="/html/yesod-typeclass.html">Yesod型类</a></div>
+  <div><a href="/html/routing-and-handlers.html">路由和处理函数</a></div>
+  <div><a href="/html/forms.html">表单</a></div>
+  <div><a href="/html/sessions.html">会话</a></div>
+  <div><a href="/html/persistent.html">Persistent</a></div>
+  <div><a href="/html/deploying-your-webapp.html">部署你的web应用</a></div>
+  <div id="seperator"></div>
+</div>
+</div>
+<div id="layout-content-box">
+<div id="layout-content">
+<div id="header">
+<div id="toc">
+  <div id="toctitle">本章目录</div>
+  <noscript><p><b>JavaScript must be enabled in your browser to display the table of contents.</b></p></noscript>
+</div>
+</div>
+<div id="content">
+<div class="sect1">
+<h2 id="_会话">会话</h2>
+<div class="sectionbody">
+<div class="paragraph"><p>HTTP是一个无状态的协议。虽然有些人把无状态性视为HTTP的缺点，RESTful的支持者却
+夸赞其为优点。当把状态移除以后，我们自动得到了一些好处，比如更容易扩展和缓存。
+你可以大体上用HTTP的无状态性与Haskell的不可变(non-mutable)特性做类比。</p></div>
+<div class="paragraph"><p>RESTful应用应当尽可能避免储存与客户端的交互状态。尽管如此，有时这样做是不可避
+免的。像购物车这样的功能就是经典案例，其它常见的交互如处理用户登录，可以通过正
+确使用会话得到极大增强。</p></div>
+<div class="paragraph"><p>本章讲解Yesod如何存储会话数据，你可以如何访问这些数据，以及一些专用函数帮你最
+有效的使用会话。</p></div>
+<div class="sect2">
+<h3 id="_客户会话_clientsession">客户会话 (ClientSession)</h3>
+<div class="paragraph"><p>最早从Yesod分离出去的包之一就是clientsession包。这个包使用加密和签名将数据存储
+在客户端的cookie中。加密能阻止用户查看数据，而签名能保证会话不被截持或篡改。</p></div>
+<div class="paragraph"><p>从效率的角度讲，把数据存在cookie中似乎不是个好主意。毕竟，这样的话数据在每次请
+求时都要被发送。但在实际应用中，clientsession的性能表现非常好。</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+响应一个请求不需要在服务器端执行任何数据库查询操作。
+</p>
+</li>
+<li>
+<p>
+水平扩展很容易：每个请求都包含了做出响应所需要的全部信息。
+</p>
+</li>
+<li>
+<p>
+为避免不必要的带宽开支，生产环境的站点可以从单独的域名托管静态文件，从而做到
+  不是每个请求都传送会话cookie。
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>在会话中存储几兆的数据不是好主意。大部分会话实现也不推荐那样。如果你真的需要给
+一个用户存储那么多信息，最好还是在会话中保存一个查询关键字，而实际的数据放在数
+据库中。</p></div>
+<div class="paragraph"><p>与clientsession的交互全部由Yesod在内部完成，但有些地方你可以做适当的微调
+(tweak)。</p></div>
+</div>
+<div class="sect2">
+<h3 id="_控制会话">控制会话</h3>
+<div class="paragraph"><p>默认情况下，你的Yesod应用使用clientsession来保存会话，从用户的
+<span class="monospaced">client-session-key.aes</span>获取加密密钥，并给会话设定两小时的超时时间。(注意：
+超时时间是从用户上一次发送请求计算的，<strong>不是</strong>从会话创建时间计算的。)尽管如此
+，这些都可以通过重定义Yesod类中的<span class="monospaced">makeSessionBackend</span>方法来修改。</p></div>
+<div class="paragraph"><p>一个简单的修改方法是关闭会话处理；只要让它返回<span class="monospaced">Nothing</span>即可。如果你的应用绝
+对没有会话需求，关闭会话可以略微改进性能。但关闭会话还是要当心：因为它会同时关
+闭如跨站请求伪造(CSRF: Cross-Site Request Forgery)防御这样的功能。</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">Yesod</span> <span style="color: #009900">App</span> <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    makeSessionBackend <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="color: #990000">=</span> return <span style="color: #009900">Nothing</span></tt></pre></div></div>
+<div class="paragraph"><p>另一种常用做法是修改(密钥)文件路径或超时时间，但继续使用client-session。要做到
+这一点，使用<span class="monospaced">defaultClientSessionBackend</span>这个辅助函数：</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">Yesod</span> <span style="color: #009900">App</span> <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    makeSessionBackend <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+        <span style="font-weight: bold"><span style="color: #0000FF">let</span></span> minutes <span style="color: #990000">=</span> <span style="color: #993399">24</span> <span style="color: #990000">*</span> <span style="color: #993399">60</span> <span style="font-style: italic"><span style="color: #9A1900">-- 1天</span></span>
+            filepath <span style="color: #990000">=</span> <span style="color: #FF0000">"mykey.aes"</span>
+        backend <span style="color: #990000">&lt;-</span> defaultClientSessionBackend minutes filepath</tt></pre></div></div>
+<div class="paragraph"><p>还有其它一些函数可以帮你更好的控制client-session，但它们很少会用到。如果你感兴
+趣，可以参阅<span class="monospaced">Yesod.Core</span>模块的文档。还可以实施其它形式的会话，比如服务器端会
+话。据我所知，目前还没有其它类似的实现。</p></div>
+<div class="admonitionblock">
+<table><tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">如果指定的密钥文件不存在，它会被自动创建并包含一个随机生成的密钥。当你将
+应用部署到生产环境时，你应该包含预先生成的密钥，否则所有已经存在的会话，在新密
+钥文件生成时都会失效。脚手架站点会自动为你处理。</td>
+</tr></table>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_会话操作">会话操作</h3>
+<div class="paragraph"><p>像大多数web框架那样，Yesod中的会话是以键-值(key-value)方式存储的。基础的会话
+API包括四个函数：<span class="monospaced">lookupSession</span>从关键字得到值(如果存在的话)，<span class="monospaced">getSession</span>
+返回所有的键/值对，<span class="monospaced">setSession</span>给一个值设置一个键，<span class="monospaced">deleteSession</span>清除一个
+键的值。</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE OverloadedStrings     #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE QuasiQuotes           #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TemplateHaskell       #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TypeFamilies          #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE MultiParamTypeClasses #-}</span></span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           Control<span style="color: #990000">.</span><span style="color: #009900">Applicative</span> <span style="color: #990000">((&lt;$&gt;),</span> <span style="color: #990000">(&lt;*&gt;))</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span> qualified Web<span style="color: #990000">.</span><span style="color: #009900">ClientSession</span>   as <span style="color: #009900">CS</span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           <span style="color: #009900">Yesod</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">App</span> <span style="color: #990000">=</span> <span style="color: #009900">App</span>
+
+mkYesod <span style="color: #FF0000">"App"</span> <span style="color: #990000">[</span>parseRoutes<span style="color: #990000">|</span>
+<span style="color: #990000">/</span> <span style="color: #009900">HomeR</span> <span style="color: #009900">GET</span> <span style="color: #009900">POST</span>
+<span style="color: #990000">|]</span>
+
+getHomeR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+getHomeR <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+    sess <span style="color: #990000">&lt;-</span> getSession
+    defaultLayout
+        <span style="color: #990000">[</span>whamlet<span style="color: #990000">|</span>
+            <span style="color: #990000">&lt;</span>form method<span style="color: #990000">=</span>post<span style="color: #990000">&gt;</span>
+                <span style="color: #990000">&lt;</span>input <span style="font-weight: bold"><span style="color: #0000FF">type</span></span><span style="color: #990000">=</span>text name<span style="color: #990000">=</span>key<span style="color: #990000">&gt;</span>
+                <span style="color: #990000">&lt;</span>input <span style="font-weight: bold"><span style="color: #0000FF">type</span></span><span style="color: #990000">=</span>text name<span style="color: #990000">=</span>val<span style="color: #990000">&gt;</span>
+                <span style="color: #990000">&lt;</span>input <span style="font-weight: bold"><span style="color: #0000FF">type</span></span><span style="color: #990000">=</span>submit<span style="color: #990000">&gt;</span>
+            <span style="color: #990000">&lt;</span>h1<span style="color: #990000">&gt;#{</span>show sess<span style="color: #990000">}</span>
+        <span style="color: #990000">|]</span>
+
+postHomeR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #990000">()</span>
+postHomeR <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+    <span style="color: #990000">(</span>key<span style="color: #990000">,</span> mval<span style="color: #990000">)</span> <span style="color: #990000">&lt;-</span> runInputPost <span style="color: #990000">$</span> <span style="color: #990000">(,)</span> <span style="color: #990000">&lt;$&gt;</span> ireq textField <span style="color: #FF0000">"key"</span> <span style="color: #990000">&lt;*&gt;</span> iopt textField <span style="color: #FF0000">"val"</span>
+    <span style="font-weight: bold"><span style="color: #0000FF">case</span></span> mval <span style="font-weight: bold"><span style="color: #0000FF">of</span></span>
+        <span style="color: #009900">Nothing</span> <span style="color: #990000">-&gt;</span> deleteSession key
+        <span style="color: #009900">Just</span> val <span style="color: #990000">-&gt;</span> setSession key val
+    liftIO <span style="color: #990000">$</span> print <span style="color: #990000">(</span>key<span style="color: #990000">,</span> mval<span style="color: #990000">)</span>
+    redirect <span style="color: #009900">HomeR</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">Yesod</span> <span style="color: #009900">App</span> <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    <span style="font-style: italic"><span style="color: #9A1900">-- 将会话的超时时间设为1分钟，这样更利于测试</span></span>
+    makeSessionBackend <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+        backend <span style="color: #990000">&lt;-</span> defaultClientSessionBackend <span style="color: #993399">1</span> <span style="color: #FF0000">"keyfile.aes"</span>
+        return <span style="color: #990000">$</span> <span style="color: #009900">Just</span> backend
+
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">RenderMessage</span> <span style="color: #009900">App</span> <span style="color: #009900">FormMessage</span> <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    renderMessage <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="color: #990000">=</span> defaultFormMessage
+
+main <span style="color: #990000">::</span> <span style="color: #009900">IO</span> <span style="color: #990000">()</span>
+main <span style="color: #990000">=</span> warp <span style="color: #993399">3000</span> <span style="color: #009900">App</span></tt></pre></div></div>
+</div>
+<div class="sect2">
+<h3 id="_消息">消息</h3>
+<div class="paragraph"><p>前面章节提到过会话的一个用途是消息。它们可以用来解决web开发中的一个常见问题：
+当用户提交一个<span class="monospaced">POST</span>请求时，web应用对请求进行处理，然后应用在把用户重定向到
+新页面的<em>同时</em>给用户发送提交成功的消息。(这就是所谓的Post/Redirect/Get。)</p></div>
+<div class="paragraph"><p>Yesod提供了一对函数来完成这个工作流：<span class="monospaced">setMessage</span>函数在会话中存储一个值，
+<span class="monospaced">getMessage</span>函数从会话读取最近加入的值，并清空它以保证同一消息不显示两次。</p></div>
+<div class="paragraph"><p>建议的做法是将<span class="monospaced">getMessage</span>放在<span class="monospaced">defaultLayout</span>中，这样消息能立刻显示给用户
+，而不用在每个处理函数中调用<span class="monospaced">getMessage</span>。</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE MultiParamTypeClasses #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE OverloadedStrings     #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE QuasiQuotes           #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TemplateHaskell       #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TypeFamilies          #-}</span></span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           <span style="color: #009900">Yesod</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">App</span> <span style="color: #990000">=</span> <span style="color: #009900">App</span>
+
+mkYesod <span style="color: #FF0000">"App"</span> <span style="color: #990000">[</span>parseRoutes<span style="color: #990000">|</span>
+<span style="color: #990000">/</span>            <span style="color: #009900">HomeR</span>       <span style="color: #009900">GET</span>
+<span style="color: #990000">/</span>set<span style="color: #990000">-</span>message <span style="color: #009900">SetMessageR</span> <span style="color: #009900">POST</span>
+<span style="color: #990000">|]</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">Yesod</span> <span style="color: #009900">App</span> <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    defaultLayout widget <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+        pc <span style="color: #990000">&lt;-</span> widgetToPageContent widget
+        mmsg <span style="color: #990000">&lt;-</span> getMessage
+        giveUrlRenderer
+            <span style="color: #990000">[</span>hamlet<span style="color: #990000">|</span>
+                <span style="color: #990000">$</span>doctype <span style="color: #993399">5</span>
+                <span style="color: #990000">&lt;</span>html<span style="color: #990000">&gt;</span>
+                    <span style="color: #990000">&lt;</span>head<span style="color: #990000">&gt;</span>
+                        <span style="color: #990000">&lt;</span>title<span style="color: #990000">&gt;#{</span>pageTitle pc<span style="color: #990000">}</span>
+                        <span style="color: #990000">^{</span>pageHead pc<span style="color: #990000">}</span>
+                    <span style="color: #990000">&lt;</span>body<span style="color: #990000">&gt;</span>
+                        <span style="color: #990000">$</span>maybe msg <span style="color: #990000">&lt;-</span> mmsg
+                            <span style="color: #990000">&lt;</span>p<span style="color: #990000">&gt;</span><span style="color: #009900">Your</span> message was<span style="color: #990000">:</span> <span style="color: #990000">#{</span>msg<span style="color: #990000">}</span>
+                        <span style="color: #990000">^{</span>pageBody pc<span style="color: #990000">}</span>
+            <span style="color: #990000">|]</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">RenderMessage</span> <span style="color: #009900">App</span> <span style="color: #009900">FormMessage</span> <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    renderMessage <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="color: #990000">=</span> defaultFormMessage
+
+getHomeR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+getHomeR <span style="color: #990000">=</span> defaultLayout
+    <span style="color: #990000">[</span>whamlet<span style="color: #990000">|</span>
+        <span style="color: #990000">&lt;</span>form method<span style="color: #990000">=</span>post action<span style="color: #990000">=@{</span><span style="color: #009900">SetMessageR</span><span style="color: #990000">}&gt;</span>
+            <span style="color: #009900">My</span> message is<span style="color: #990000">:</span> <span style="color: #990000">#</span>
+            <span style="color: #990000">&lt;</span>input <span style="font-weight: bold"><span style="color: #0000FF">type</span></span><span style="color: #990000">=</span>text name<span style="color: #990000">=</span>message<span style="color: #990000">&gt;</span>
+            <span style="color: #990000">&lt;</span>button<span style="color: #990000">&gt;</span><span style="color: #009900">Go</span>
+    <span style="color: #990000">|]</span>
+
+postSetMessageR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #990000">()</span>
+postSetMessageR <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+    msg <span style="color: #990000">&lt;-</span> runInputPost <span style="color: #990000">$</span> ireq textField <span style="color: #FF0000">"message"</span>
+    setMessage <span style="color: #990000">$</span> toHtml msg
+    redirect <span style="color: #009900">HomeR</span>
+
+main <span style="color: #990000">::</span> <span style="color: #009900">IO</span> <span style="color: #990000">()</span>
+main <span style="color: #990000">=</span> warp <span style="color: #993399">3000</span> <span style="color: #009900">App</span></tt></pre></div></div>
+<div class="imageblock">
+<div class="content">
+<img src="../images/messages-1.png" alt="../images/messages-1.png">
+</div>
+<div class="title">Figure 1. 初次载入页面，无消息</div>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="../images/messages-1.png" alt="../images/messages-1.png">
+</div>
+<div class="title">Figure 2. 在文本框中输入新消息</div>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="../images/messages-3.png" alt="../images/messages-3.png">
+</div>
+<div class="title">Figure 3. 提交后，消息显示在页面顶部</div>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="../images/messages-4.png" alt="../images/messages-4.png">
+</div>
+<div class="title">Figure 4. 刷新后，消息清除</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_最终目的_ultimate_destination">最终目的(Ultimate Destination)</h3>
+<div class="paragraph"><p>不要把这节的名字误以为是一部惊悚电影的名字，最终目的一开始是为Yesod的登录框架
+开发的一项技术，但具有更多用途。假设用户请求的一个页面需要登录。如果用户未登录
+，你需要将他/她重定向至登录页面。一个设计良好的web应用会在登录成功后<em>再将用户
+重定向回最开始请求的页面</em>。这就是我们说的最终目的。</p></div>
+<div class="paragraph"><p><span class="monospaced">redirectUltDest</span>将用户重定向到会话中所设置的最终目的，并从会话中清除它。它
+还有一个默认目的，以防没有在会话中没有配置目的。要在会话中设置目的地址，有三种
+方法：</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+<span class="monospaced">setUltDest</span>设置指定URL的目的地址，可以用文本URL或类型安全URL.
+</p>
+</li>
+<li>
+<p>
+<span class="monospaced">setUltDestCurrent</span>设置当前请求的URL为目的地址。
+</p>
+</li>
+<li>
+<p>
+<span class="monospaced">setUltDestReferer</span>基于<span class="monospaced">Referer</span>(上一个页面的URL)头设置目的路径。
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>另外还有<span class="monospaced">clearUltDest</span>函数，会话中如果有最终目的地址，则将其删除。</p></div>
+<div class="paragraph"><p>让我们看一个小例子。它允许用户在会话中设置他/她的名字，然后在另一个路由显示这
+个名字。如果还没有在会话中设置名字，则用户会被重定向至名字设置页面，并且会自动
+在会话中设置一个最终目的来把用户带回当前页面。</p></div>
+<div class="listingblock">
+<div class="content"><!-- Generator: GNU source-highlight 3.1.6
+by Lorenzo Bettini
+http://www.lorenzobettini.it
+http://www.gnu.org/software/src-highlite -->
+<pre><tt><span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE MultiParamTypeClasses #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE OverloadedStrings     #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE QuasiQuotes           #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TemplateHaskell       #-}</span></span>
+<span style="font-style: italic"><span style="color: #9A1900">{-# LANGUAGE TypeFamilies          #-}</span></span>
+<span style="font-weight: bold"><span style="color: #0000FF">import</span></span>           <span style="color: #009900">Yesod</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">data</span></span> <span style="color: #009900">App</span> <span style="color: #990000">=</span> <span style="color: #009900">App</span>
+
+mkYesod <span style="color: #FF0000">"App"</span> <span style="color: #990000">[</span>parseRoutes<span style="color: #990000">|</span>
+<span style="color: #990000">/</span>         <span style="color: #009900">HomeR</span>     <span style="color: #009900">GET</span>
+<span style="color: #990000">/</span>setname  <span style="color: #009900">SetNameR</span>  <span style="color: #009900">GET</span> <span style="color: #009900">POST</span>
+<span style="color: #990000">/</span>sayhello <span style="color: #009900">SayHelloR</span> <span style="color: #009900">GET</span>
+<span style="color: #990000">|]</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">Yesod</span> <span style="color: #009900">App</span>
+
+<span style="font-weight: bold"><span style="color: #0000FF">instance</span></span> <span style="color: #009900">RenderMessage</span> <span style="color: #009900">App</span> <span style="color: #009900">FormMessage</span> <span style="font-weight: bold"><span style="color: #0000FF">where</span></span>
+    renderMessage <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="font-weight: bold"><span style="color: #0000FF">_</span></span> <span style="color: #990000">=</span> defaultFormMessage
+
+getHomeR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+getHomeR <span style="color: #990000">=</span> defaultLayout
+    <span style="color: #990000">[</span>whamlet<span style="color: #990000">|</span>
+        <span style="color: #990000">&lt;</span>p<span style="color: #990000">&gt;</span>
+            <span style="color: #990000">&lt;</span>a href<span style="color: #990000">=@{</span><span style="color: #009900">SetNameR</span><span style="color: #990000">}&gt;</span><span style="color: #009900">Set</span> your name
+        <span style="color: #990000">&lt;</span>p<span style="color: #990000">&gt;</span>
+            <span style="color: #990000">&lt;</span>a href<span style="color: #990000">=@{</span><span style="color: #009900">SayHelloR</span><span style="color: #990000">}&gt;</span><span style="color: #009900">Say</span> hello
+    <span style="color: #990000">|]</span>
+
+<span style="font-style: italic"><span style="color: #9A1900">-- 显示名字设置表单</span></span>
+getSetNameR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+getSetNameR <span style="color: #990000">=</span> defaultLayout
+    <span style="color: #990000">[</span>whamlet<span style="color: #990000">|</span>
+        <span style="color: #990000">&lt;</span>form method<span style="color: #990000">=</span>post<span style="color: #990000">&gt;</span>
+            <span style="color: #009900">My</span> name is <span style="color: #990000">#</span>
+            <span style="color: #990000">&lt;</span>input <span style="font-weight: bold"><span style="color: #0000FF">type</span></span><span style="color: #990000">=</span>text name<span style="color: #990000">=</span>name<span style="color: #990000">&gt;</span>
+            <span style="color: #990000">.</span> <span style="color: #990000">#</span>
+            <span style="color: #990000">&lt;</span>input <span style="font-weight: bold"><span style="color: #0000FF">type</span></span><span style="color: #990000">=</span>submit value<span style="color: #990000">=</span><span style="color: #FF0000">"Set name"</span><span style="color: #990000">&gt;</span>
+    <span style="color: #990000">|]</span>
+
+<span style="font-style: italic"><span style="color: #9A1900">-- 获取用户提交的名字</span></span>
+postSetNameR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #990000">()</span>
+postSetNameR <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+    <span style="font-style: italic"><span style="color: #9A1900">-- 得到提交的名字并将其写入会话</span></span>
+    name <span style="color: #990000">&lt;-</span> runInputPost <span style="color: #990000">$</span> ireq textField <span style="color: #FF0000">"name"</span>
+    setSession <span style="color: #FF0000">"name"</span> name
+
+    <span style="font-style: italic"><span style="color: #9A1900">-- 在我们得到名字后，重定向至最终目的。</span></span>
+    <span style="font-style: italic"><span style="color: #9A1900">-- 如果没有设置最终目的，则重定向至首页。</span></span>
+    redirectUltDest <span style="color: #009900">HomeR</span>
+
+getSayHelloR <span style="color: #990000">::</span> <span style="color: #009900">Handler</span> <span style="color: #009900">Html</span>
+getSayHelloR <span style="color: #990000">=</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+    <span style="font-style: italic"><span style="color: #9A1900">-- 在会话中查询名字</span></span>
+    mname <span style="color: #990000">&lt;-</span> lookupSession <span style="color: #FF0000">"name"</span>
+    <span style="font-weight: bold"><span style="color: #0000FF">case</span></span> mname <span style="font-weight: bold"><span style="color: #0000FF">of</span></span>
+        <span style="color: #009900">Nothing</span> <span style="color: #990000">-&gt;</span> <span style="font-weight: bold"><span style="color: #0000FF">do</span></span>
+            <span style="font-style: italic"><span style="color: #9A1900">-- 会话中没有名字，将当前页面设置为最张目的并重定向至名字设置页面</span></span>
+            setUltDestCurrent
+            setMessage <span style="color: #FF0000">"Please tell me your name"</span>
+            redirect <span style="color: #009900">SetNameR</span>
+        <span style="color: #009900">Just</span> name <span style="color: #990000">-&gt;</span> defaultLayout <span style="color: #990000">[</span>whamlet<span style="color: #990000">|&lt;</span>p<span style="color: #990000">&gt;</span><span style="color: #009900">Welcome</span> <span style="color: #990000">#{</span>name<span style="color: #990000">}|]</span>
+
+main <span style="color: #990000">::</span> <span style="color: #009900">IO</span> <span style="color: #990000">()</span>
+main <span style="color: #990000">=</span> warp <span style="color: #993399">3000</span> <span style="color: #009900">App</span></tt></pre></div></div>
+</div>
+<div class="sect2">
+<h3 id="_小结">小结</h3>
+<div class="paragraph"><p>会话是用来绕过HTTP无状态性的首要方法。我们不应该把它当成逃生舱口而用它来执行任
+意的操作：web应用的无状态性是一个优点，我们应该尽可能遵守它。尽管如此，对于一
+些特定的应用场景，保持状态至关重要。</p></div>
+<div class="paragraph"><p>Yesod中的会话API非常简单。它提供了一个键-值存储，和一些基于常见用例的辅助函数
+。如果正确使用的话，以其较小的开销，会话可以成为你web开发中很自然的一部分。</p></div>
+</div>
+</div>
+</div>
+</div>
+<div id="footnotes"><hr /></div>
+<div id="footer">
+<div id="footer-text">
+Last updated 2014-01-18 21:50:54 CST <br/>
+本站全部内容以MIT和Creative Commons 4.0许可证发布。详情请看<a href="https://raw.github.com/rnons/yesodbook-zh/master/LICENSE">许可证文件</a>。
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>
