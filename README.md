@@ -42,4 +42,4 @@
 
 ## License
 
-Dual-licensed under MIT and CC 3.0 license.
+Dual-licensed under MIT and CC 4.0 license.

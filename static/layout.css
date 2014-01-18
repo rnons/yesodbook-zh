@@ -86,6 +86,10 @@ h1 {
   margin-top: 0.2em;
 }
 
+#repo-link {
+  text-align: center;
+}
+
 #layout-content {
   padding-top: 0.2em;
   padding-left: 1.0em;
