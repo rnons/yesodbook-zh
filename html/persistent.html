@@ -564,7 +564,11 @@ TABLE</span>的能力非常有限，因此，Persistent必须将数据从一个�
 <div class="paragraph"><p>除了可以声明实体中的字段，你还可以声明唯一性约束。一个典型的例子是要求用户名唯
 一。</p></div>
 <div class="listingblock">
-<div class="content"></div></div>
+<div class="content monospaced">
+<pre>User
+    username Text
+    UniqueUsername username</pre>
+</div></div>
 <div class="paragraph"><p>每个字段的名字必须以小写字母开始，而唯一性约束必须以大写字母开始，因为在
 Haskell中它是一个数据构造函数。</p></div>
 <div class="listingblock">
@@ -1567,7 +1571,7 @@ main <span style="color: #990000">=</span> withPostgresqlPool connStr <span styl
 <div id="footnotes"><hr /></div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2014-01-18 21:50:51 CST <br/>
+Last updated 2014-01-18 22:05:38 CST <br/>
 本站全部内容以MIT和Creative Commons 4.0许可证发布。详情请看<a href="https://raw.github.com/rnons/yesodbook-zh/master/LICENSE">许可证文件</a>。
 </div>
 </div>

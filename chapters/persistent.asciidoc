@@ -430,7 +430,6 @@ TABLE++的能力非常有限，因此，Persistent必须将数据从一个表拷
 除了可以声明实体中的字段，你还可以声明唯一性约束。一个典型的例子是要求用户名唯
 一。
 
-[source, persistent]
 ----
 User
     username Text

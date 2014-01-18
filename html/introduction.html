@@ -59,7 +59,7 @@ HTML、CSS、Javascript)才能创建一个强大的web应用，等等。</p></di
 不只囊括了类型正确；透明引用(referential transparency)保证了我们不会有意外的副
 作用。代数数据类型(algebraic data types)的模式匹配，保证我们考虑到每一种情况。
 构建于Haskell之上，很多类别的bug都完全消除。</p></div>
-<div class="paragraph"><p>不幸的是，只用Haskell还不够。Web在本质上是类型_不_安全的。即使是最简单的辨别整
+<div class="paragraph"><p>不幸的是，只用Haskell还不够。Web在本质上是类型<em>不</em>安全的。即使是最简单的辨别整
 型和字符串，也是不可能的：所有数据在web上都以裸字节方式传输，破坏了我们在类型安
 全上的最大优势。每个web应用都需要验证输入数据的合法性。我将这个问题称作边界问题
 ：不管你的应用内部是多么的类型安全，在每一个与应用外部交互的边界处，你仍然需要
@@ -131,7 +131,7 @@ API间的一致性。</p></div>
 选好，并且它们保证可以一起工作。当然，你总是可以选择加入自己的解决方案。</p></div>
 <div class="paragraph"><p>举一个真实的例子，Yesod和Hamlet(默认的模板语言)使用了blaze-builder包来生成文本
 内容。这个选择基于blaze提供了最快速生成UTF-8文本的接口。任何想使用其它库比如
-+text+的人，替换起来也不会有问题。</p></div>
+<span class="monospaced">text</span>的人，替换起来也不会有问题。</p></div>
 </div>
 <div class="sect2">
 <h3 id="I_sect11_d1e388">Haskell介绍</h3>
@@ -159,7 +159,7 @@ Haskell特性会在下一章中讲解。</p></div>
 <div id="footnotes"><hr /></div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2014-01-18 21:50:51 CST <br/>
+Last updated 2014-01-18 22:05:38 CST <br/>
 本站全部内容以MIT和Creative Commons 4.0许可证发布。详情请看<a href="https://raw.github.com/rnons/yesodbook-zh/master/LICENSE">许可证文件</a>。
 </div>
 </div>

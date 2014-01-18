@@ -80,7 +80,7 @@ getHomeR <span style="color: #990000">=</span> defaultLayout <span style="color:
 
 main <span style="color: #990000">::</span> <span style="color: #009900">IO</span> <span style="color: #990000">()</span>
 main <span style="color: #990000">=</span> warp <span style="color: #993399">3000</span> <span style="color: #009900">HelloWorld</span></tt></pre></div></div>
-<div class="paragraph"><p>如果你将以上代码保存为+helloworld.hs+，然后用+runhaskell helloworld.hs+运行它
+<div class="paragraph"><p>如果你将以上代码保存为<span class="monospaced">helloworld.hs</span>，然后用<span class="monospaced">runhaskell helloworld.hs</span>运行它
 ，会有一个web服务器运行在端口3000。如果你用浏览器打开http://localhost:3000，
 会得到如下的HTML：</p></div>
 <div class="listingblock">
@@ -113,12 +113,12 @@ http://www.gnu.org/software/src-highlite -->
 <td class="icon">
 <div class="title">Note</div>
 </td>
-<td class="content">+mkYesod+是一个Haskell模板函数(Template Haskell function)，而
-+parseRoutes+是一个准引用(QuasiQuoter)。</td>
+<td class="content"><span class="monospaced">mkYesod</span>是一个Haskell模板函数(Template Haskell function)，而
+<span class="monospaced">parseRoutes</span>是一个准引用(QuasiQuoter)。</td>
 </tr></table>
 </div>
-<div class="paragraph"><p>用大白话说就是：在HelloWorld应用中，创建一条路由。我将其命名为+HomeR+，它侦听对
-+/+的请求(应用的根路径)，并且回应+GET+请求。我们称+HomeR+为一个资源(resource)，
+<div class="paragraph"><p>用大白话说就是：在HelloWorld应用中，创建一条路由。我将其命名为<span class="monospaced">HomeR</span>，它侦听对
+<span class="monospaced">/</span>的请求(应用的根路径)，并且回应<span class="monospaced">GET</span>请求。我们称<span class="monospaced">HomeR</span>为一个资源(resource)，
 这也是它以"R"结尾的原因。</p></div>
 <div class="admonitionblock">
 <table><tr>
@@ -129,9 +129,9 @@ http://www.gnu.org/software/src-highlite -->
 码。</td>
 </tr></table>
 </div>
-<div class="paragraph"><p><span class="monospaced">mkYesod+这个TH函数会生成很多代码：一个路由数据类型，解析/呈现(parse/render)函
+<div class="paragraph"><p><span class="monospaced">mkYesod</span>这个TH函数会生成很多代码：一个路由数据类型，解析/呈现(parse/render)函
 数，分发函数(dispatch function)和一些辅助类型。我们会在路由那一章更详细的讲这个
-问题。通过使用</span>-ddump-splices+这个GHC选项，我们可以立即看到生成的代码。以下是一
+问题。通过使用<span class="monospaced">-ddump-splices</span>这个GHC选项，我们可以立即看到生成的代码。以下是一
 个简化的版本：</p></div>
 <div class="listingblock">
 <div class="content"><!-- Generator: GNU source-highlight 3.1.6
@@ -161,16 +161,16 @@ http://www.gnu.org/software/src-highlite -->
                         <span style="font-weight: bold"><span style="color: #0000FF">_</span></span>     <span style="color: #990000">-&gt;</span> badMethod
 
 <span style="font-weight: bold"><span style="color: #0000FF">type</span></span> <span style="color: #009900">Handler</span> <span style="color: #990000">=</span> <span style="color: #009900">HandlerT</span> <span style="color: #009900">HelloWorld</span> <span style="color: #009900">IO</span></tt></pre></div></div>
-<div class="paragraph"><p>我们可以看到+RenderRoute+类定义了一个关联数据类型(<strong>associated data type</strong>)，
-它是应用的路由。在这个小例子中，我们只有一条路由：+HomeR+。在现实应用
-中会有多得多的路由，而且它们会比+HomeR+复杂得多。</p></div>
-<div class="paragraph"><p>+renderRoute+的输入是路由，输出是路径段(path segments)和查询参数(query
+<div class="paragraph"><p>我们可以看到<span class="monospaced">RenderRoute</span>类定义了一个关联数据类型(<strong>associated data type</strong>)，
+它是应用的路由。在这个小例子中，我们只有一条路由：<span class="monospaced">HomeR</span>。在现实应用
+中会有多得多的路由，而且它们会比<span class="monospaced">HomeR</span>复杂得多。</p></div>
+<div class="paragraph"><p><span class="monospaced">renderRoute</span>的输入是路由，输出是路径段(path segments)和查询参数(query
 string)。再次说明，我们的例子很简单，所以代码也同样简单：这两个值都是空列表。</p></div>
-<div class="paragraph"><p>+ParseRoute+类提供了+renderRoute+的反函数+parseRoute+。这是我们首次看到Yesod依
+<div class="paragraph"><p><span class="monospaced">ParseRoute</span>类提供了<span class="monospaced">renderRoute</span>的反函数<span class="monospaced">parseRoute</span>。这是我们首次看到Yesod依
 赖于Haskell模板的原因：它保证了对路由的解析和呈现能够一致。这一类代码如果手写的
 话，会很容易变得难以同步。借助于代码生成(code generation)技术，我们将这些细节交
 给编译器(和Yesod)处理。</p></div>
-<div class="paragraph"><p>+YesodDispatch+类提供的+yesodDispatch+方法，将输入请求分发给正确的处理函数
+<div class="paragraph"><p><span class="monospaced">YesodDispatch</span>类提供的<span class="monospaced">yesodDispatch</span>方法，将输入请求分发给正确的处理函数
 (handler function)。这个过程本质上是这样的：</p></div>
 <div class="olist arabic"><ol class="arabic">
 <li>
@@ -190,23 +190,23 @@ string)。再次说明，我们的例子很简单，所以代码也同样简单�
 </li>
 </ol></div>
 <div class="paragraph"><p>代码生成按照一种简单的格式来匹配路由和处理函数，我们会在下一节中讲解。</p></div>
-<div class="paragraph"><p>最后，我们定义了类型别名+Handler+，它能让我们的代码写起来更容易(更短)。</p></div>
+<div class="paragraph"><p>最后，我们定义了类型别名<span class="monospaced">Handler</span>，它能让我们的代码写起来更容易(更短)。</p></div>
 <div class="paragraph"><p>实际上有很多我们没有讲到的地方。生成的分发代码实际上使用的是一种更高效的数据结
 构，它会创建更多的型类(typeclass)及其实例(instance)，而且需要处理其它的情况比如
 子站(subsites)。我们会渐渐深入细节，尤其是在&#8216;`理解HTTP请求&#8217;'那一章。</p></div>
 </div>
 <div class="sect2">
 <h3 id="_处理函数_handler_function">处理函数(Handler function)</h3>
-<div class="paragraph"><p>上例中，我们定义了名为+HomeR+的路由，它可以响应<span class="monospaced">GET+请求。那响应是怎么定义的呢
+<div class="paragraph"><p>上例中，我们定义了名为<span class="monospaced">HomeR</span>的路由，它可以响应<span class="monospaced">GET</span>请求。那响应是怎么定义的呢
 ？写一个处理函数就可以。Yesod要求处理函数遵循标准的命名规则：小写的请求方法(比
-如+GET+在函数名中是+get</span>)，然后紧接路由名。在本例中，处理函数的名字就是
-+getHomeR+。</p></div>
+如<span class="monospaced">GET</span>在函数名中是<span class="monospaced">get</span>)，然后紧接路由名。在本例中，处理函数的名字就是
+<span class="monospaced">getHomeR</span>。</p></div>
 <div class="paragraph"><p>你写的大部分Yesod代码都会是处理函数。在处理函数中，你处理用户输入、执行数据库查
-询、创建应答。在上例中，我们用+defaultLayout+函数来创建应答。这个函数将内容嵌入
-到网站模板中。默认情况下，它会生成一个HTML文件，文件有doctype和+html+、+head+、
-+body+等标签。在Yesod型类一章中，我们将会看到可以重定义(override)这个函数以实现
+询、创建应答。在上例中，我们用<span class="monospaced">defaultLayout</span>函数来创建应答。这个函数将内容嵌入
+到网站模板中。默认情况下，它会生成一个HTML文件，文件有doctype和<span class="monospaced">html</span>、<span class="monospaced">head</span>、
+<span class="monospaced">body</span>等标签。在Yesod型类一章中，我们将会看到可以重定义(override)这个函数以实现
 更多功能。</p></div>
-<div class="paragraph"><p>在上例中，我们把+[whamlet|Hello World!|]+传给+defaultLayout+。+whamlet+是另一
+<div class="paragraph"><p>在上例中，我们把<span class="monospaced">[whamlet|Hello World!|]</span>传给<span class="monospaced">defaultLayout</span>。<span class="monospaced">whamlet</span>是另一
 个准引用。在这里，它把Hamlet语句转化成一个控件(Widget)。Hamlet是Yesod默认的HTML
 模板引擎。将Hamlet与Cassius、Lucius和Julius配合使用，你可以以完全类型安全且编译
 时检验的方式创建HTML、CSS和Javascript。我们会在莎氏模板一章中详述。</p></div>
@@ -216,7 +216,7 @@ string)。再次说明，我们的例子很简单，所以代码也同样简单�
 <div class="sect2">
 <h3 id="_yesod基石">Yesod基石</h3>
 <div class="paragraph"><p>在上例中`HelloWorld'这个词出现了数次。每一个Yesod应用中都有一个基础数据类型
-(foundatoin datatype)。这个数据类型必须是+Yesod+型类的实例，它是集中声明配置信
+(foundatoin datatype)。这个数据类型必须是<span class="monospaced">Yesod</span>型类的实例，它是集中声明配置信
 息的地方，这些配置控制了应用的执行。</p></div>
 <div class="paragraph"><p>上例中的基础数据类型比较枯燥：它不包含任何信息。尽管如此，它对于该程序如何运行
 有关键作用：它将路由与实例声明绑定，并运行它们。我们会在本书中反复看到基础数据
@@ -256,9 +256,9 @@ HTTP连接管理器
 </div>
 <div class="sect2">
 <h3 id="_运行">运行</h3>
-<div class="paragraph"><p>在上例的main函数中，再一次出现了+HelloWorld+。在基础数据类型中包含了所有用来路
+<div class="paragraph"><p>在上例的main函数中，再一次出现了<span class="monospaced">HelloWorld</span>。在基础数据类型中包含了所有用来路
 由和响应请求的信息；我们现在只需要把它们转化成可执行代码就行。对此，Yesod里一个
-有用的函数是+warp+，它用若干默认配置、在指定端口(这里是3000)上运行一个Warp网络
+有用的函数是<span class="monospaced">warp</span>，它用若干默认配置、在指定端口(这里是3000)上运行一个Warp网络
 服务器。</p></div>
 <div class="paragraph"><p>Yesod的特性之一是你不只有一种布署策略。Yesod构建于网络应用接口(WAI: Web
 Application Interface)之上，因此它可以运行在FastCGI、SCGI、Warp上，甚至可以通过
@@ -298,21 +298,21 @@ getPage1R <span style="color: #990000">=</span> defaultLayout <span style="color
 getPage2R <span style="color: #990000">=</span> defaultLayout <span style="color: #990000">[</span>whamlet<span style="color: #990000">|&lt;</span>a href<span style="color: #990000">=@{</span><span style="color: #009900">HomeR</span><span style="color: #990000">}&gt;</span><span style="color: #009900">Go</span> home<span style="color: #990000">!|]</span>
 
 main <span style="color: #990000">=</span> warp <span style="color: #993399">3000</span> <span style="color: #009900">Links</span></tt></pre></div></div>
-<div class="paragraph"><p>总体上，这与Hello World那个例子非常近似。在这里，基础数据类型是+Links+而不是
-+HelloWorld+，在+HomeR+之外，我们又增加了+Page1R+和+Page2R+这两个资源。因此，
-我们也需要增加两个处理函数：+getPage1R+和+getPage2R+。</p></div>
-<div class="paragraph"><p>在这里算得上新特性的只有+whamlet+这个准引用。我们会在&#8216;`莎氏模板&#8217;'一章中深入讲解
+<div class="paragraph"><p>总体上，这与Hello World那个例子非常近似。在这里，基础数据类型是<span class="monospaced">Links</span>而不是
+<span class="monospaced">HelloWorld</span>，在<span class="monospaced">HomeR</span>之外，我们又增加了<span class="monospaced">Page1R</span>和<span class="monospaced">Page2R</span>这两个资源。因此，
+我们也需要增加两个处理函数：<span class="monospaced">getPage1R</span>和<span class="monospaced">getPage2R</span>。</p></div>
+<div class="paragraph"><p>在这里算得上新特性的只有<span class="monospaced">whamlet</span>这个准引用。我们会在&#8216;`莎氏模板&#8217;'一章中深入讲解
 其语法。不过我们可以看到：</p></div>
 <div class="listingblock">
 <div class="content monospaced">
 <pre>&lt;a href=@{Page1R}&gt;Go to page 1!</pre>
 </div></div>
-<div class="paragraph"><p>创建了一个指向<span class="monospaced">Page1R+的超链接。这里需要注意的是+Page1R+是一个数据构造函数(data
+<div class="paragraph"><p>创建了一个指向<span class="monospaced">Page1R</span>的超链接。这里需要注意的是<span class="monospaced">Page1R</span>是一个数据构造函数(data
 constructor)。通过
 使每个资源都是一个数据构造器，我们就实现了所谓的类型安全URL(type-safe URLs
 )这个特性。我们只需要创建一个普通的Haskell值，而不用通过拼接字符串来创建URL。
-使用@符号(</span>@{&#8230;}+)插值，Yesod会自动将这些值转换为文本形式的URL，然后
-发送给用户。还是通过+-ddump-splices+，我们可以看到它是怎么实现的：</p></div>
+使用@符号(<span class="monospaced">@{&#8230;}</span>)插值，Yesod会自动将这些值转换为文本形式的URL，然后
+发送给用户。还是通过<span class="monospaced">-ddump-splices</span>，我们可以看到它是怎么实现的：</p></div>
 <div class="listingblock">
 <div class="content"><!-- Generator: GNU source-highlight 3.1.6
 by Lorenzo Bettini
@@ -325,8 +325,8 @@ http://www.gnu.org/software/src-highlite -->
     renderRoute <span style="color: #009900">HomeR</span>  <span style="color: #990000">=</span> <span style="color: #990000">([],</span> <span style="color: #990000">[])</span>
     renderRoute <span style="color: #009900">Page1R</span> <span style="color: #990000">=</span> <span style="color: #990000">([</span><span style="color: #FF0000">"page1"</span><span style="color: #990000">],</span> <span style="color: #990000">[])</span>
     renderRoute <span style="color: #009900">Page2R</span> <span style="color: #990000">=</span> <span style="color: #990000">([</span><span style="color: #FF0000">"page2"</span><span style="color: #990000">],</span> <span style="color: #990000">[])</span></tt></pre></div></div>
-<div class="paragraph"><p>在这个例子中，<span class="monospaced">Route+是+Links+类的关联类型中，除了+HomeR+，我们还新增了+Page1R</span>
-和+Page2R+这两个数据构造函数。我们还能更好的看到+renderRoute+函数的返回值。元组
+<div class="paragraph"><p>在这个例子中，<span class="monospaced">Route</span>是<span class="monospaced">Links</span>类的关联类型中，除了<span class="monospaced">HomeR</span>，我们还新增了<span class="monospaced">Page1R</span>
+和<span class="monospaced">Page2R</span>这两个数据构造函数。我们还能更好的看到<span class="monospaced">renderRoute</span>函数的返回值。元组
 (tuple)的第一部分是该路由的路径段。第二部分是请求参数；在大多数情况下，它是个空
 列表。</p></div>
 <div class="paragraph"><p>怎么高估类型安全URL都不为过。它们在你的应用开发中提供了伸缩性和稳健性保证。你可
@@ -338,11 +338,11 @@ http://www.gnu.org/software/src-highlite -->
 </div>
 <div class="sect2">
 <h3 id="_脚手架站点_scaffolded_site">脚手架站点(scaffolded site)</h3>
-<div class="paragraph"><p>安装完Yesod后，你既有Yesod类库，也有一个名为+yesod+的可执行文件。这个可执行文件
-可以接受参数传入，但你首先需要熟悉的命令是+yesod init+。它会问你一些问题，然后
-生成一个包含默认脚手架站点的文件夹。在生成的文件夹中，执行+cabal install
---only-dependencies+来建构额外的依赖(比如与数据库后端有关的包)，然后执行+yesod
-devel+来运行你的站点。</p></div>
+<div class="paragraph"><p>安装完Yesod后，你既有Yesod类库，也有一个名为<span class="monospaced">yesod</span>的可执行文件。这个可执行文件
+可以接受参数传入，但你首先需要熟悉的命令是<span class="monospaced">yesod init</span>。它会问你一些问题，然后
+生成一个包含默认脚手架站点的文件夹。在生成的文件夹中，执行<span class="monospaced">cabal install
+--only-dependencies</span>来建构额外的依赖(比如与数据库后端有关的包)，然后执行<span class="monospaced">yesod
+devel</span>来运行你的站点。</p></div>
 <div class="paragraph"><p>脚手架站点开箱即用，带给你最佳实践，为你配置好文件和依赖。这些配置都是经过生产
 环境Yesod站点长时间检验的。尽管如此，这些方便之处也可能防碍你真正学习Yesod。因
 此，本书大部分时候都避免使用脚手架工具，而是直接使用Yesod库。但如果你要搭建一个
@@ -352,13 +352,13 @@ devel+来运行你的站点。</p></div>
 <div class="sect2">
 <h3 id="_开发服务器">开发服务器</h3>
 <div class="paragraph"><p>解释型语言相比于编译型语言的一个优势是原型快速迭代：你只要保存文件然后点击刷新
-即可。我们对上面的Yesod例子做任何改动，都需要重新执行_runhaskell_，这会有点繁琐
+即可。我们对上面的Yesod例子做任何改动，都需要重新执行<em>runhaskell</em>，这会有点繁琐
 。</p></div>
-<div class="paragraph"><p>幸运的是，我们有解决方法：+yesod devel+会自动重新构建和加载你的代码。在开发
+<div class="paragraph"><p>幸运的是，我们有解决方法：<span class="monospaced">yesod devel</span>会自动重新构建和加载你的代码。在开发
 Yesod项目时会极为有用。在你要布署到生产环境时，你还是应该完全编译，以生成高效
 代码。Yesod脚手架会自动帮你做好配置。这样你会得到两种语言的结合优势：快速原型
 化*和*高效的生产代码。</p></div>
-<div class="paragraph"><p>让你的代码能够用上_yesod devel_需要做一些工作，因此我们的例子仍将只使用+warp+。
+<div class="paragraph"><p>让你的代码能够用上<em>yesod devel</em>需要做一些工作，因此我们的例子仍将只使用<span class="monospaced">warp</span>。
 幸运的是，脚手架项目已经为你配置好开发服务器，所以当你进行真实的Yesod项目开发时
 ，它就在那等着你。</p></div>
 </div>
@@ -367,12 +367,12 @@ Yesod项目时会极为有用。在你要布署到生产环境时，你还是应
 <div class="paragraph"><p>每一个Yesod应用都围绕一个基础数据类型构建。我们将一些资源与这个数据类型相关联，
 然后定义相应的处理函数，Yesod就会处理所有的路由。这些资源同时也是数据构造函数，
 为我们提供了类型安全的URL。</p></div>
-<div class="paragraph"><p>通过构建于WAI之上，Yesod应用可以运行在大量的后端上。对于简单的应用，+warp+函数
-提供了易于使用的Warp服务器。如果需要快速开发，使用+yesod devel+是不错的选择。当
+<div class="paragraph"><p>通过构建于WAI之上，Yesod应用可以运行在大量的后端上。对于简单的应用，<span class="monospaced">warp</span>函数
+提供了易于使用的Warp服务器。如果需要快速开发，使用<span class="monospaced">yesod devel</span>是不错的选择。当
 你要布署到生产环境时，你可以完全且方便的配置Warp(或其它WAI处理器)以匹配你的需求
 。</p></div>
-<div class="paragraph"><p>当开发Yesod应用时，我们有很多代码风格可以选：准引用或外部文件，+warp+或+yesod
-devel+等等。本书的例子都偏向于容易复制粘贴，但在开发真实的Yesod应用时，你可以
+<div class="paragraph"><p>当开发Yesod应用时，我们有很多代码风格可以选：准引用或外部文件，<span class="monospaced">warp</span>或<span class="monospaced">yesod
+devel</span>等等。本书的例子都偏向于容易复制粘贴，但在开发真实的Yesod应用时，你可以
 选择更强大的方案。</p></div>
 </div>
 </div>
@@ -381,7 +381,7 @@ devel+等等。本书的例子都偏向于容易复制粘贴，但在开发真�
 <div id="footnotes"><hr /></div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2014-01-18 21:50:47 CST <br/>
+Last updated 2014-01-18 22:05:34 CST <br/>
 本站全部内容以MIT和Creative Commons 4.0许可证发布。详情请看<a href="https://raw.github.com/rnons/yesodbook-zh/master/LICENSE">许可证文件</a>。
 </div>
 </div>

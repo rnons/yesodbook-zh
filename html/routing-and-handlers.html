@@ -81,7 +81,13 @@ asciidoc.install(2);
 解应用的站点地图(sitemap)。</p></div>
 <div class="paragraph"><p>下面是这种语法的一个简单例子：</p></div>
 <div class="listingblock">
-<div class="content"></div></div>
+<div class="content monospaced">
+<pre>/             HomeR     GET
+/blog         BlogR     GET POST
+/blog/#BlogId BlogPostR GET POST
+
+/static       StaticR   Static getStatic</pre>
+</div></div>
 <div class="paragraph"><p>接下来几个小节会详细解释路由声明是怎么工作的。</p></div>
 <div class="sect3">
 <h4 id="_路径段_pieces">路径段(Pieces)</h4>
@@ -248,7 +254,9 @@ http://www.gnu.org/software/src-highlite -->
 并不是太复杂。最常用的子站是静态文件子站，用来托管应用中的静态文件。为了从
 <span class="monospaced">/static</span>路径托管静态文件，你需要一行这样的资源定义：</p></div>
 <div class="listingblock">
-<div class="content"></div></div>
+<div class="content monospaced">
+<pre>/static StaticR Static getStatic</pre>
+</div></div>
 <div class="paragraph"><p>在这行中，<span class="monospaced">/static</span>表明静态文件的路径。static这个词在这并没有什么特殊的意思，
 你可以用别的词替代，比如<span class="monospaced">/my/non-dynamic/files</span>。</p></div>
 <div class="paragraph"><p>下一个词<span class="monospaced">StaticR</span>，给出了资源名称。后面两个词表明我们是在用子站。<span class="monospaced">Static</span>
@@ -604,7 +612,7 @@ expiresAt
 <div id="footnotes"><hr /></div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2014-01-18 21:50:53 CST <br/>
+Last updated 2014-01-18 22:05:40 CST <br/>
 本站全部内容以MIT和Creative Commons 4.0许可证发布。详情请看<a href="https://raw.github.com/rnons/yesodbook-zh/master/LICENSE">许可证文件</a>。
 </div>
 </div>

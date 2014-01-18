@@ -28,7 +28,7 @@ NOTE: Cassius实际上只是Lucius的另一种写法。它们使用了相同的�
 
 ==== Hamlet (HTML)
 
-[source, hamlet]
+[source, html]
 ----
 $doctype 5
 <html>
@@ -49,7 +49,7 @@ $doctype 5
 
 ==== Cassius (CSS)
 
-[source, cassius]
+[source, css]
 ----
 #myid
     color: #{red}
@@ -60,7 +60,7 @@ foo bar baz
 
 ==== Lucius (CSS)
 
-[source, lucius]
+[source, css]
 ----
 section.blog {
     padding: 1em;
@@ -73,7 +73,7 @@ section.blog {
 
 ==== Julius (Javascript)
 
-[source, julius]
+[source, js]
 ----
 $(function(){
     $("section.#{sectionClass}").hide();
@@ -87,47 +87,47 @@ $(function(){
 在讲解语法前，我们先看看涉及到的类型。我们在“引言”一章中讲到类型会帮我们阻止
 XSS攻击。比如说，我们有一个HTML模板用来显示人名。它可能是这样的：
 
-[source, hamlet]
+[source, html]
 ----
 <p>Hello, my name is #{name}
 ----
 
-NOTE: +#{...}+是莎氏模板里进行变量插值(variable interpolation)的语法。
+NOTE: ++#{...}++是莎氏模板里进行变量插值(variable interpolation)的语法。
 
-+name+会被替换成什么，它的数据类型是什么？一个幼稚的方法是用+Text+类型的值，然
-后逐字插入。但如果+name+的值是下面这样的，会给我们带来很大的问题：
+++name++会被替换成什么，它的数据类型是什么？一个幼稚的方法是用++Text++类型的值，然
+后逐字插入。但如果++name++的值是下面这样的，会给我们带来很大的问题：
 
 ----
 <script src='http://nefarious.com/evil.js'></script>
 ----
 
-我们希望能够对名字进行实体编码(entity-encode)，因此+&lt;+会变成+&amp;lt;+。
+我们希望能够对名字进行实体编码(entity-encode)，因此++&lt;++会变成++&amp;lt;++。
 
 同样幼稚的一种办法是对每个词都做实体编码。如果你有HTML是从另一个函数生成的呢？
 比如，在Yesod官网上，所有Haskell代码都被一个代码高亮函数处理过，这个函数将词嵌
-套在适当的+span+标签内。如果我们编码所有的词，代码块将不具有可读性！
+套在适当的++span++标签内。如果我们编码所有的词，代码块将不具有可读性！
 
-与此相反，我们有一个+Html+数据类型。为了生成+Html+值，我们有两个API可选：
-+ToMarkup+型类提供了+toHtml+函数，它能将+String+和+Text+值转为+Html+，并自动转
+与此相反，我们有一个++Html++数据类型。为了生成++Html++值，我们有两个API可选：
+++ToMarkup++型类提供了++toHtml++函数，它能将++String++和++Text++值转为++Html++，并自动转
 义实体。这是我们对上面人名例子的解决方法。对于代码高亮的例子，我们要用
-+preEscapedToMarkup+函数。
+++preEscapedToMarkup++函数。
 
-当你在Hamlet中使用变量插值时，它会对所要插入的值自动应用+toHtml+函数。所以如果
-你插入的是一个+String+值，它会被转义。但如果你提供的是一个+Html+值，它就会保持
-原样。在代码高亮例子中，我们会这样写+#{preEscapedToMarkup myHaskellHtml}+。
+当你在Hamlet中使用变量插值时，它会对所要插入的值自动应用++toHtml++函数。所以如果
+你插入的是一个++String++值，它会被转义。但如果你提供的是一个++Html++值，它就会保持
+原样。在代码高亮例子中，我们会这样写++#{preEscapedToMarkup myHaskellHtml}++。
 
-NOTE: +Html+数据类型以及我们提到的几个函数，都来自于blaze-html包。这使得Hamlet
+NOTE: ++Html++数据类型以及我们提到的几个函数，都来自于blaze-html包。这使得Hamlet
 可以与所有其它blaze-html包交互，并且Hamlet能提供一种通用的生成blaze-html值的方
 法。另外，我们还能充分利用blaze-html的惊人性能。
 
-类似的，我们也有+Css+/+ToCss+和+Javascript+/+ToJavascript+函数。这些会在编译时
+类似的，我们也有++Css++/++ToCss++和++Javascript++/++ToJavascript++函数。这些会在编译时
 进行一些合法性校验，以保证我们不会不小心在CSS里嵌入HTML代码。
 
 [NOTE]
 ====
 CSS模板的另一个优势是有一些颜色和单位的辅助数据类型。比如：
 
-[source, lucius]
+[source, css]
 ----
 .red { color: #{colorRed} }
 ----
@@ -141,15 +141,15 @@ Yesod最独特的特性可能要数类型安全URL了，正是莎氏模板使我
 全URL。其用法和变量插值几乎一样；我们只需要用@符号而不是#符号就可以。我们会在
 稍后讲解语法；首先，让我们讲讲起因。
 
-假设我们的应用有两条路由：_http://example.com/profile/home_是首页，
-_http://example.com/display/time_显示当前时间。假设我们想从首页链接到时间页
+假设我们的应用有两条路由：__http://example.com/profile/home__是首页，
+__http://example.com/display/time__显示当前时间。假设我们想从首页链接到时间页
 面。我能想到三种不同的构造URL的方法：
 
-. 相对路径：_../display/time_
+. 相对路径：__../display/time__
 
-. 绝对路径，不包含域名：_/display/time_
+. 绝对路径，不包含域名：__/display/time__
 
-. 绝对路径，包含域名：_http://example.com/display/time_
+. 绝对路径，包含域名：__http://example.com/display/time__
 
 这三种方法都有各自的问题：第一种方法只要其中有一个URL改变了，就会失效。同样的
 ，它不适用于所有的应用场合；比如说RSS和Atom源需要的是绝对路径。第二种方法比第
@@ -169,7 +169,7 @@ _http://example.com/display/time_显示当前时间。假设我们想从首页�
 data MyRoute = Home | Time
 ----
 
-我们在模板中不使用/display/time这样的链接，而是使用+Time+这个构造函数。但最终
+我们在模板中不使用/display/time这样的链接，而是使用++Time++这个构造函数。但最终
 ，HTML还是由文本构成的，而不是数据类型，所以我们需要能将这些值转为文本的方法。
 我们称之为URL呈现函数(rendering function)，下面是一个简单的样例：
 
@@ -198,11 +198,11 @@ renderMyRoute Time _ = ...
 ====
 
 好了，我们在有了呈现函数，在模板里有了类型安全的URL。这些究竟是怎么结合在一起
-的呢？我们不是直接生成+Html+(或+Css+、+Javascript+)，莎氏模板实际上生成的是一
+的呢？我们不是直接生成++Html++(或++Css++、++Javascript++)，莎氏模板实际上生成的是一
 个函数，它的输入是呈现函数，输出是HTML。为了看清楚这点，我们看一个(假的)
 Hamlet底层细节。假设我们有这样一个模板：
 
-[source,hamlet]
+[source, html]
 ----
 <a href=@{Time}>The time
 ----
@@ -230,7 +230,7 @@ Hamlet是莎氏模板语言里最复杂的。不仅因为它提供了生成HTML�
 保持高度一致，这样使用起来更自然。然而，我们使用缩进来表示嵌套，而不用关闭标签
 。因此这样的HTML代码：
 
-[source,html]
+[source, html]
 ----
 <body>
 <p>Some paragraph.</p>
@@ -243,7 +243,7 @@ Hamlet是莎氏模板语言里最复杂的。不仅因为它提供了生成HTML�
 
 对应的Hamlet代码是
 
-[source, hamlet]
+[source, html]
 ----
 <body>
     <p>Some paragraph.
@@ -263,7 +263,7 @@ Hamlet是莎氏模板语言里最复杂的。不仅因为它提供了生成HTML�
 我们想确保“Paragraph“后和“end”前的空格符被保留。为了做到这一点，我们使用两个简
 单的转义字符：
 
-[source, hamlet]
+[source, html]
 ----
 <p>
     Paragraph #
@@ -280,7 +280,7 @@ Hamlet是莎氏模板语言里最复杂的。不仅因为它提供了生成HTML�
 另外，Hamlet*不*对内容中的实体(entity)进行转义。这么做是有意的，是为了让拷贝已
 有HTML代码到Hamlet更加容易。因此上面的例子也可以写成这样：
 
-[source, hamlet]
+[source, html]
 ----
 <p>Paragraph <i>italic</i> end.
 ----
@@ -294,19 +294,19 @@ Hamlet是莎氏模板语言里最复杂的。不仅因为它提供了生成HTML�
 到目前为止，我们有一个不错、简化的HTML实现，但它还完全不能和Haskell代码交互。
 我们怎么传入变量呢？很简单：用变量插值：
 
-[source, hamlet]
+[source, html]
 ----
 <head>
     <title>#{title}
 ----
 
 #号后紧跟一对花括号表示这是一个*变量插值*。在这面这个例子中，被插入的值是调用
-模板时作用域内的+title+变量值。让我再说一次：Hamlet在被调用时，自动拥有了访问
+模板时作用域内的++title++变量值。让我再说一次：Hamlet在被调用时，自动拥有了访问
 作用域内变量的权限。不需要特意将变量传入。
 
 你可以在变量插值中调用函数。也可以使用字符串和数字。可以使用限定模块(qualified
-modules)。可以用括号和美元符号来组合表达式(statements)。最后，+toHtml+函数会作
-用在结果上，意味着任何+ToHtml+的实例都可以做插值。比如，下面的代码。
+modules)。可以用括号和美元符号来组合表达式(statements)。最后，++toHtml++函数会作
+用在结果上，意味着任何++ToHtml++的实例都可以做插值。比如，下面的代码。
 
 [source, haskell]
 ----
@@ -328,7 +328,7 @@ main = putStrLn $ renderHtml [shamlet|
 <p>
     Let's do some funny stuff with my name: #
     <b>#{sort $ map toLower (name person)}
-<p>Oh, and in 5 years I'll be #{show ((+) 5 (age person))} years old.
+<p>Oh, and in 5 years I'll be #{show ((++) 5 (age person))} years old.
 |]
   where
     person = Person "Michael" 26
@@ -373,25 +373,25 @@ main = putStrLn $ renderHtml $ [hamlet|
 
 * 你可以在属性值中使用变量插值。
 
-* 等号和属性值是可选的，就像在HTML里那样。因此+<input type=checkbox checked>+
+* 等号和属性值是可选的，就像在HTML里那样。因此++<input type=checkbox checked>++
   是完全合法的。
 
 * 有两种便捷的属性定义方法：对于id，你可以用#号，对于class，你可以用点(.)。换
-  句话说，(可以这样定义：)+<p #paragraphid .class1 .class2>+。
+  句话说，(可以这样定义：)++<p #paragraphid .class1 .class2>++。
 
 * 属性值两边的引号是可选的，但如果你要属性值内有空格，则引号是必须的。
 
 * 你可以用冒号来选择性的增加属性。要让一个复选框(checkbox)仅当isChecked变量为
-  真时才被选中，可以这样写+<input type=checkbox :isChecked:checked+。要让一段
-  文字选择性为红色，你可以用+<p :isRed:style="color:red">+。
+  真时才被选中，可以这样写++<input type=checkbox :isChecked:checked++。要让一段
+  文字选择性为红色，你可以用++<p :isRed:style="color:red">++。
 
 ===== 条件语句
 
 最终，你会想要在页面上增加(控制)逻辑。Hamlet的目标是尽量简化逻辑，将繁重的任务
-交给Haskell代码。因此，我们的逻辑语句非常基础... 基础到只有+if+、+elseif+和
-+else+。
+交给Haskell代码。因此，我们的逻辑语句非常基础... 基础到只有++if++、++elseif++和
+++else++。
 
-[source, hamlet]
+[source, html]
 ----
 $if isAdmin
     <p>Welcome to the admin section.
@@ -405,11 +405,11 @@ $else
 
 ===== 或许(Maybe)
 
-类似的，我们也有专门的结构来处理Maybe值。技术上它们可以用+if+、+isJust+和
-+fromJust+来实现，但这样(的专门结构)更方便，也避免了偏函数(partial functions)
+类似的，我们也有专门的结构来处理Maybe值。技术上它们可以用++if++、++isJust++和
+++fromJust++来实现，但这样(的专门结构)更方便，也避免了偏函数(partial functions)
 。
 
-[source, hamlet]
+[source, html]
 ----
 $maybe name <- maybeName
     <p>Your name is #{name}
@@ -420,7 +420,7 @@ $nothing
 在(<-)左侧，你除了可以用简单的标识符，还可以使用更复杂的值，比如构造函数和元组
 (tuple)。
 
-[source, hamlet]
+[source, html]
 ----
 $maybe Person firstName lastName <- maybePerson
     <p>Your name is #{firstName} #{lastName}
@@ -432,7 +432,7 @@ $maybe Person firstName lastName <- maybePerson
 
 怎么对列表做循环呢？我们也有相应的结构：
 
-[source, hamlet]
+[source, html]
 ----
 $if null people
     <p>No people.
@@ -445,10 +445,10 @@ $else
 ===== Case语句
 
 模式匹配是Haskell的一大强项。汇合类型(Sum types)让你能清晰的建模真实世界的类型
-，+case+语句让你安全的做模式匹配，如果你忘了处理某一种情况，编译器会发出警告。
+，++case++语句让你安全的做模式匹配，如果你忘了处理某一种情况，编译器会发出警告。
 Hamlet也能做到这点。
 
-[source, hamlet]
+[source, html]
 ----
 $case foo
     $of Left bar
@@ -459,9 +459,9 @@ $case foo
 
 ===== With语句
 
-我们可以用+with+来概括一个语句。这样做基本上是为了给一条长语句声明一个别名。
+我们可以用++with++来概括一个语句。这样做基本上是为了给一条长语句声明一个别名。
 
-[source, hamlet]
+[source, html]
 ----
 $with foo <- some very (long ugly) expression that $ should only $ happen once
     <p>But I'm going to use #{foo} multiple times. #{foo}
@@ -469,10 +469,10 @@ $with foo <- some very (long ugly) expression that $ should only $ happen once
 
 ===== Doctype语句
 
-最后一个语法糖：doctype语句。我们支持不同版本的+doctype+，不过我们给时下大多数
-web应用推荐+$doctype 5+，它会生成+<!DOCTYPE html>+。
+最后一个语法糖：doctype语句。我们支持不同版本的++doctype++，不过我们给时下大多数
+web应用推荐++$doctype 5++，它会生成++<!DOCTYPE html>++。
 
-[source, hamlet]
+[source, html]
 ----
 $doctype 5
 <html>
@@ -483,8 +483,8 @@ $doctype 5
 ----
 
 
-NOTE: 还有一种旧的但仍被支持的语法：三个感叹号(+!!!+)。你可能在代码里还见过这
-种用法。我们不打算移除它，但通常来说，用+$doctype+更易读。
+NOTE: 还有一种旧的但仍被支持的语法：三个感叹号(++!!!++)。你可能在代码里还见过这
+种用法。我们不打算移除它，但通常来说，用++$doctype++更易读。
 
 ==== Lucius语法
 
@@ -499,7 +499,7 @@ Lucius是莎氏模板里两种CSS模板语言之一。它被设计成CSS的超�
 
 * 可以将一组CSS属性定义成mixin，然后多处复用。
 
-从第二点开始：假设你想对+article+标签内的几个标签应用特殊的样式。用普通的CSS，
+从第二点开始：假设你想对++article++标签内的几个标签应用特殊的样式。用普通的CSS，
 你必须这样写：
 
 [source, css]
@@ -512,7 +512,7 @@ article a { text-decoration: none; }
 这个例子虽然只有几句话，但每次都必须打出article还是有点讨厌。想象你有十几个这
 样的语句。虽然不是最糟糕的事，但还是有点烦人。Lucius可以帮到你：
 
-[source, lucius]
+[source, css]
 ----
 article {
     code { background-color: grey; }
@@ -523,7 +523,7 @@ article {
 
 Lucius变量可以让你避免重复。一个简单的例子是定义共用的颜色：
 
-[source, lucius]
+[source, css]
 ----
 @textcolor: #ccc; /* just because we hate our users */
 body { color: #{textcolor} }
@@ -570,7 +570,7 @@ Cassius是空格敏感的Lucius版本。在概要中我们已经提到，它和L
 引擎，不过在预处理的时候会在代码块前后插入括弧，在每行末尾插入分号。这意味着你
 在写Cassius的时候可以用上Lucius的所有特性。下面是一个简单的例子：
 
-[source, cassius]
+[source, css]
 ----
 #banner
     border: 1px solid #{bannerColor}
@@ -681,30 +681,30 @@ foo { bar: baz }
 
 [options="header"]
 |===============
-|Language|Quasiquoter|External file|Reload
-|Hamlet|hamlet|+hamletFile+|_N/A_
-|Cassius|+cassius+|+cassiusFile+|+cassiusFileReload+
-|Lucius|+lucius+|+luciusFile+|+luciusFileReload+
-|Julius|+julius+|+juliusFile+|+juliusFileReload+
+|模板语言|准引用|外部文件|重载模式
+|Hamlet|hamlet|++hamletFile++|__无__
+|Cassius|++cassius++|++cassiusFile++|++cassiusFileReload++
+|Lucius|++lucius++|++luciusFile++|++luciusFileReload++
+|Julius|++julius++|++juliusFile++|++juliusFileReload++
 
 |===============
 
 ==== 其它Hamlet类型
 
-目前为止，我们已经看到如何从Hamlet生成+HtmlUrl+值，它是一段内嵌类型安全URL的
+目前为止，我们已经看到如何从Hamlet生成++HtmlUrl++值，它是一段内嵌类型安全URL的
 HTML代码。还有三种值可以用Hamlet生成：普通的HTML、含URL*以及*多语言消息的HTML
 、控件。用Hamlet生成控件会在“控件”一章中讲解。
 
 要生成不含URL的普通HTML，我们就使用“简化的Hamlet“。它(与普通的Hamlet相比)有一
 些改动：
 
-* 我们使用另一组以字母“s”打头的函数。因此准引用名为+shamlet+，外部文件模板函数
-为+shamletFile+。至于这些函数怎么发音仍存争议。
+* 我们使用另一组以字母“s”打头的函数。因此准引用名为++shamlet++，外部文件模板函数
+为++shamletFile++。至于这些函数怎么发音仍存争议。
 
 * 不允许URL插值。URL插值会导致编译错误。
 
-* ^插值不允许任意的+HtmlUrl+值。被嵌套的值必须与模板本身的类型一致，所以它必须
-也是+Html+类型。这意味着对于+shamlet+，内嵌可以完全用普通的变量插值(用#号)替代
+* ^插值不允许任意的++HtmlUrl++值。被嵌套的值必须与模板本身的类型一致，所以它必须
+也是++Html++类型。这意味着对于++shamlet++，内嵌可以完全用普通的变量插值(用#号)替代
 。
 
 在Hamlet中处理多国语言(i18n)会有些复杂。Hamlet通过消息数据类型来支持i18n，与类
@@ -729,7 +729,7 @@ renderEnglish (Apples i) = T.concat ["You bought ", T.pack $ show i, " apples."]
 
 现在我们想把这些Msg值直接插入模板。我们要用到下划线插值方法。
 
-[source, hamlet]
+[source, html]
 ----
 $doctype 5
 <html>
@@ -751,7 +751,7 @@ type Translate msg = msg -> Html
 type HtmlUrlI18n msg url = Translate msg -> Render url -> Html
 ----
 
-至此，我们可以将+renderEnglish+，+renderSpanish+或+renderKlingon+传入模板，它
+至此，我们可以将++renderEnglish++，++renderSpanish++或++renderKlingon++传入模板，它
 会输出翻译好的结果(当然，取决于翻译得有多好)。完整的程序是：
 
 [source, haskell]
@@ -827,12 +827,12 @@ main = forM_ items $ \item -> TLIO.putStrLn
 
 关于这个例子的几点快速说明：
 
-* 注意我们涉及到三种不同的文本数据类型(+String+，strict +Text+和lazy +Text+)。
+* 注意我们涉及到三种不同的文本数据类型(++String++，strict ++Text++和lazy ++Text++)。
   它们可以混合使用。
 
-* 我们使用了叫+lt+的准引用，它能生成lazy文本。相应的有+st+。
+* 我们使用了叫++lt++的准引用，它能生成lazy文本。相应的有++st++。
 
-* 另外，这两个准引用也有较长名字的版本(+ltext+和+stext+)。
+* 另外，这两个准引用也有较长名字的版本(++ltext++和++stext++)。
 
 === 一般建议
 
@@ -848,4 +848,4 @@ main = forM_ items $ \item -> TLIO.putStrLn
 
 
 * 你应该总是给每个Hamlet标签另起一行，而不要在现有标签中嵌套开始/关闭标签。唯
-  一的例外是大段文本中偶尔的+<i>+和+<b>+标签。
+  一的例外是大段文本中偶尔的++<i>++和++<b>++标签。

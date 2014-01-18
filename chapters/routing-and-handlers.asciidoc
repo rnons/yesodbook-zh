@@ -24,7 +24,6 @@ Yesod在原理上更接近后一种方法。即便如此，还是有显著的差
 
 下面是这种语法的一个简单例子：
 
-[source, routes]
 ----
 /             HomeR     GET
 /blog         BlogR     GET POST
@@ -166,7 +165,6 @@ data MyRoute = PersonR Text
 并不是太复杂。最常用的子站是静态文件子站，用来托管应用中的静态文件。为了从
 ++/static++路径托管静态文件，你需要一行这样的资源定义：
 
-[source, routes]
 ----
 /static StaticR Static getStatic
 ----
