@@ -1,0 +1,33 @@
+== Yeosd Book目录
+
+http://rnons.github.io/yesodbook-zh/html/introduction.html[第一章 引言]
+
+http://rnons.github.io/yesodbook-zh/html/haskell.html[第二章 Haskell]
+
+http://rnons.github.io/yesodbook-zh/html/basics.html[第三章 基础]
+
+http://rnons.github.io/yesodbook-zh/html/shakespearean-templates.html[第四章 莎氏模板]
+
+http://rnons.github.io/yesodbook-zh/html/widgets.html[第五章 控件]
+
+http://rnons.github.io/yesodbook-zh/html/yesod-typeclass.html[第六章 Yesod型类]
+
+http://rnons.github.io/yesodbook-zh/html/routing-and-handlers.html[第七章 路由和处理函数]
+
+http://rnons.github.io/yesodbook-zh/html/forms.html[第八章 表单]
+
+http://rnons.github.io/yesodbook-zh/html/sessions.html[第九章 会话]
+
+http://rnons.github.io/yesodbook-zh/html/persistent.html[第十章 Persistent]
+
+http://rnons.github.io/yesodbook-zh/html/deploying-your-webapp.html[第十一章 部署你的web应用]
+
+== 译者注
+
+翻译这本书完全是为了督促自己深入学习Yesod。我读过的中文技术书籍极为有限，词汇量也非常小，慎读！
+
+学习link:http://www.haskell.org/[Haskell]和link:http://www.yesodweb.com/[Yesod]，建议尽量阅读原文。
+
+- http://www.yesodweb.com/book[Yesod Book英文原版]
+- http://learnyouahaskell.com/chapters[Learn You a Haskell for Great Good!]
+- http://book.realworldhaskell.org/read/[Real World Haskell]

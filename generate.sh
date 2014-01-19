@@ -8,4 +8,4 @@ do
     DEST=html/${BN%.asciidoc}.html
     asciidoc -b html5 -f layout.conf -a toc -o $DEST $f
 done
-cp html/index.html .
+asciidoc -b html5 -f layout.conf -o index.html README.asciidoc
