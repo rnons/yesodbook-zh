@@ -96,6 +96,7 @@ instance PathPiece Natural where
 败则返回++Nothing++。通过使用这个数据类型，我们可以保证只有自然数会传递给处理
 函数，再一次用类型系统保卫了我们的边界。
 
+[caption="注意"]
 NOTE: 在现实的应用中，我们还需要保证在应用内部不会不小心构造出无效的
 ++Natural++值。要做到这一点，我们可以用像
 link:http://www.haskell.org/haskellwiki/Smart_constructors[智能构造函数(smart
@@ -123,6 +124,7 @@ instance PathMultiPiece Page where
 ，不管是一个段还是多个段，其数据类型都会成为构造函数的参数。这就在应用中为类型
 安全URL和合法URL建立了一对一的关联。
 
+[caption="注意"]
 NOTE: 这不意味着__每一个__值都是能工作的页面，只能说它是一个合法的URL。举例来
 说，如果数据库中没有Michael的记录，那++PersonR "Michael"++就不会解析到有效的页
 面。
@@ -349,6 +351,7 @@ Application Interface)获取请求值。更多详情可以查阅“WAI附录“�
 
 redirect:: 给用户返回重定义(303返回)。如果你想返回其它的状态码(比如permanent
 301 redirect)，可以用++redirectWith++函数。
+[caption="注意"]
 [NOTE]
 ====
 Yesod给HTTP/1.1用户返回303，给HTTP/1.0用户返回302。你可以查阅HTTP规范了解详情

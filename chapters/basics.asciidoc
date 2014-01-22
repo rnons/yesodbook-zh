@@ -62,6 +62,7 @@ mkYesod "HelloWorld" [parseRoutes|
 ----
 
 
+[caption="注意"]
 NOTE: ++mkYesod++是一个Haskell模板函数(Template Haskell function)，而
 ++parseRoutes++是一个准引用(QuasiQuoter)。
 
@@ -69,6 +70,7 @@ NOTE: ++mkYesod++是一个Haskell模板函数(Template Haskell function)，而
 ++/++的请求(应用的根路径)，并且回应++GET++请求。我们称++HomeR++为一个资源(resource)，
 这也是它以"R"结尾的原因。
 
+[caption="注意"]
 NOTE: 以R为后缀只是个习惯，但是是一个被普遍遵循的习惯。这样做有助于阅读和理解代
 码。
 
@@ -171,6 +173,7 @@ string)。再次说明，我们的例子很简单，所以代码也同样简单�
 * HTTP连接管理器
 * 随机数生成器
 
+[caption="注意"]
 NOTE: 顺便说一下，Yesod(יסוד)这个词在希伯来语中就是基础(__foundation__)的意思。
 
 === 运行

@@ -67,6 +67,7 @@ __alex__这个重要的包你需要手动更新。Haskell Platform包含的alex�
 用的Javascript最小化(minifier)工具hjsmin，需要版本3。一定要在Haskell Platform搭
 建好后运行__cabal install alex__，否则会有关于language-javascript包的报错信息。
 
+[caption="注意"]
 [NOTE]
 ====
 有些人喜欢走在最前沿，总是在最新版本的GHC进入Haskell Platform之前就开始使用。我
@@ -94,6 +95,7 @@ Linux下，bin目录位于++$HOME/.cabal/bin++，在Windows下，bin目录位于
 
 * ++cabal install yesod++会安装Yesod和它所依赖的包。
 
+[caption="注意"]
 [NOTE]
 ====
 你可能更愿意在沙盒中安装你的Yesod项目，用++cabal sandbox init++命令来开启一个
@@ -220,6 +222,7 @@ main = do
 这里的新语法是可以在++class++和++instance++的定义中，定义++type++。我们也可以用++data++
 定义，这样就能创建新的数据类型，而不是已有类型的引用。
 
+[caption="注意"]
 NOTE: 类型族也有在型类以外的用法。但是在Yesod中，所有关联类型都是型类的一部分
 。更多关于类型族的信息，参阅
 link:$$http://www.haskell.org/haskellwiki/GHC/Type_families$$[Haskell维基页]。
@@ -233,6 +236,7 @@ Haskell模板来减少样板代码(boilerplate)，并且保证生成的代码是
 本质上是Haskell，它会生成了一棵Haskell抽象语法树(AST: Abstract Syntax Tree)。
 
 
+[caption="注意"]
 NOTE: 实际上Haskell模板有更多功能，比如可以检查代码。但在Yesod中没有用到这些功
 能。
 
@@ -274,6 +278,7 @@ myThCode
 有时候看看Haskell模板生成的代码会很有帮助。通过使用GHC的++-ddump-splices++选项可
 以输出所生成的代码。
 
+[caption="注意"]
 NOTE: Haskell模板很多其它的特性这里没有涉及。更多信息，参阅
 link:http://www.haskell.org/haskellwiki/Template_Haskell[Haskell维基页].
 

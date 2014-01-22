@@ -197,7 +197,7 @@ http://www.gnu.org/software/src-highlite -->
 <div class="admonitionblock">
 <table><tr>
 <td class="icon">
-<div class="title">Note</div>
+<div class="title">注意</div>
 </td>
 <td class="content">早期版本的Persistent更大范围的使用了Haskell模板。从0.6版本开始，参照
 groundhog包，persistent有了一个新架构。这种方法用影子类型(phantom types)来减轻
@@ -401,7 +401,7 @@ Persistent也自带了连接池(connection pool)函数，是我们通常在生�
 <div class="admonitionblock">
 <table><tr>
 <td class="icon">
-<div class="title">Note</div>
+<div class="title">注意</div>
 </td>
 <td class="content">你可以想象，虽然<span class="monospaced">PersistStore</span>给外部世界提供了安全、类型完善的接口，还
 是有很多数据库操作可能会出错。然而，通过在一个地方自动、彻底的测试代码，我们可
@@ -415,7 +415,7 @@ Persistent也自带了连接池(connection pool)函数，是我们通常在生�
 <div class="admonitionblock">
 <table><tr>
 <td class="icon">
-<div class="title">Note</div>
+<div class="title">注意</div>
 </td>
 <td class="content">其实还有一些型类：<span class="monospaced">PersistUpdate</span>和<span class="monospaced">PersistQuery</span>。不同的型类提供了
 不同的功能，这让我们可以给更简单的数据库(如Redis)写绑定库，即使这些数据库不提
@@ -438,7 +438,7 @@ Persistent也自带了连接池(connection pool)函数，是我们通常在生�
 <div class="admonitionblock">
 <table><tr>
 <td class="icon">
-<div class="title">Note</div>
+<div class="title">注意</div>
 </td>
 <td class="content">这实际上比看起来有更深远的影响。很多Yesod中的短路函数，比如重定向
 (redirect)，是用异常来实现的。如果你在Persistent代码块中使用了这些函数，整个事
@@ -693,7 +693,8 @@ width:100%;
 <td class="tableblock halign-left valign-top" ><p class="tableblock">selectSource</p></td>
 <td class="tableblock halign-left valign-top" ><p class="tableblock">一个包含所有查询结果的ID和值的<span class="monospaced">Source</span>。这让你可以写流式代码
 (streaming code)。</p>
-<p class="tableblock">NOTE: <span class="monospaced">Source</span>是一个数据流，是<span class="monospaced">conduit</span>包的一部分。推荐阅读
+<p class="tableblock">[caption="注意"]
+NOTE: <span class="monospaced">Source</span>是一个数据流，是<span class="monospaced">conduit</span>包的一部分。推荐阅读
 <a href="https://www.fpcomplete.com/user/snoyberg/library-documentation/conduit-overview">School
 of Haskell conduit教程</a>来开始。</p></td>
 </tr>
@@ -718,7 +719,7 @@ of Haskell conduit教程</a>来开始。</p></td>
 <div class="admonitionblock">
 <table><tr>
 <td class="icon">
-<div class="title">Note</div>
+<div class="title">注意</div>
 </td>
 <td class="content">结合使用返回数量限制(limits)和偏移量(offsets)非常重要；它允许在你的web应
 用中有效的分页(pagination)。</td>
@@ -1053,7 +1054,7 @@ main <span style="color: #990000">=</span> runSqlite <span style="color: #FF0000
 <div class="admonitionblock">
 <table><tr>
 <td class="icon">
-<div class="title">Note</div>
+<div class="title">注意</div>
 </td>
 <td class="content"><span class="monospaced">default</span>属性对Haskell代码本身没有任何影响；你还是需要填充所有值。它只
 会影响到数据库的数据定义及自动迁移。</td>
@@ -1333,7 +1334,7 @@ main <span style="color: #990000">=</span> runSqlite <span style="color: #FF0000
 <div class="admonitionblock">
 <table><tr>
 <td class="icon">
-<div class="title">Note</div>
+<div class="title">注意</div>
 </td>
 <td class="content">在这个例子中，我们将定义分成了两个模块。需要这样做是由于GHC的编译步骤约
 束，它本质上是说，在很多情况下，Haskell模板生成的代码不能在它所在的模块中使用
@@ -1352,7 +1353,7 @@ SQL的关系型特性。我的经验是你可以用这个高层接口轻松执�
 <div class="admonitionblock">
 <table><tr>
 <td class="icon">
-<div class="title">Note</div>
+<div class="title">注意</div>
 </td>
 <td class="content">实际上，你<em>可以</em>用Persisten 0.6新增的特性直接用普通语法表示LIKE运算符
 ，它会使用后端对应的运算符。但这仍然是一个(使用原始SQL的)好例子，所以让我们看
@@ -1475,7 +1476,7 @@ main <span style="color: #990000">=</span> withSqlitePool <span style="color: #F
 <div class="admonitionblock">
 <table><tr>
 <td class="icon">
-<div class="title">Note</div>
+<div class="title">注意</div>
 </td>
 <td class="content">
 <div class="paragraph"><p><span class="monospaced">runDB</span>的类型是<span class="monospaced">YesodDB site a &#8594; HandlerT site IO a</span>。<span class="monospaced">YesodDB</span>的定义是

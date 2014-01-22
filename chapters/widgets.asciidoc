@@ -128,6 +128,7 @@ CSS和JavaScript。当我们调用导航栏函数时，++<head>++标签已经生
 签里。
 
 
+[caption="注意"]
 NOTE: 你实际上可以覆盖默认行为，让脚本和样式代码出现在各自的外部文件里。脚手架
 项目自动为你完成这一点。
 
@@ -178,6 +179,7 @@ myWidget = do
 myWidget' = myWidget1 >> myWidget2
 -----------------
 
+[caption="注意"]
 NOTE: 如果你需要的话，++Widget++也是++Monoid++的实例。也就是说你可以使用++mconcat++
 或++Writer++ monad来组合控件。以我的经验来说，用do语句最简单也最自然。
 
@@ -251,6 +253,7 @@ page =
 
 如果你更喜欢把模板放在外部文件里的话，还可以用++whamletFile++函数。
 
+[caption="注意"]
 NOTE: 脚手架项目有一个更方便的函数，++widgetFile++，它会自动引用你的Lucius、
 Cassius和Julius文件。我们会在“脚手架”一章中详述。
 
@@ -445,6 +448,7 @@ lookupGetParam :: MonadHandler m => Text -> m (Maybe Text)
 ++Widget++中运行。而且如果你需要显式的将++Handler++转换为++Widget++，你还是可以用
 ++handlerToWidget++函数。
 
+[caption="注意"]
 NOTE: 这与Yesod 1.1及更早的版本有显著的区别。之前是没有++MonadHandler++这个型类
 的，所有函数都需要显式的使用++lift++转换，而不是++handlerToWidget++。新版本不仅更
 容易使用，而且也避免了旧版中使用的奇怪的monad transformer技巧。

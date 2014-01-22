@@ -331,6 +331,7 @@ carYearField = checkBool (>= 1990) errorMessage intField
 
 ++checkBool++接受两个参数：一个必须满足的条件，以及条件不满足时显示的错误消息。
 
+[caption="注意"]
 NOTE: 你可能注意到++errorMessage++用了显式的类型标识。在使用了
 ++OverloadedStrings++的情况下，需要这样做。为了支持i18n，消息可以是多种不同的
 数据类型，GHC没有办法确定你要使用的究竟是++IsString++的哪个实例。
@@ -361,6 +362,7 @@ getCurrentYear = do
 getCurrentTime++来获取当前年份，然后与用户提供的年份进行比较。另外，注意我们怎
 么把多个检验函数串联起来。
 
+[caption="注意"]
 NOTE: 因为++checkM++验证函数运行在++Handler++ monad中，所以它可以访问你在Yesod
 里通常能访问的大量内容。对于需要执行数据库操作的情况会特别有用，我们会在“
 Persistent”一章中讲解。

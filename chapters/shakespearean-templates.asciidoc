@@ -23,6 +23,7 @@ Cassius和Lucius都是CSS模板语言。Hamlet和Cassius在格式上都对空格
 表示嵌套。相比之下，Lucius是CSS的超集，保留了CSS用括弧表示嵌套的方式。Julius几
 乎就是Javascript；唯一加入的特性是变量插值。
 
+[caption="注意"]
 NOTE: Cassius实际上只是Lucius的另一种写法。它们使用了相同的处理引擎，但Cassius文
 件会在处理前将缩进转换成括弧。在它们俩中做选择完全是语法偏好问题。
 
@@ -92,6 +93,7 @@ XSS攻击。比如说，我们有一个HTML模板用来显示人名。它可能�
 <p>Hello, my name is #{name}
 ----
 
+[caption="注意"]
 NOTE: ++#{...}++是莎氏模板里进行变量插值(variable interpolation)的语法。
 
 ++name++会被替换成什么，它的数据类型是什么？一个幼稚的方法是用++Text++类型的值，然
@@ -116,6 +118,7 @@ NOTE: ++#{...}++是莎氏模板里进行变量插值(variable interpolation)的�
 你插入的是一个++String++值，它会被转义。但如果你提供的是一个++Html++值，它就会保持
 原样。在代码高亮例子中，我们会这样写++#{preEscapedToMarkup myHaskellHtml}++。
 
+[caption="注意"]
 NOTE: ++Html++数据类型以及我们提到的几个函数，都来自于blaze-html包。这使得Hamlet
 可以与所有其它blaze-html包交互，并且Hamlet能提供一种通用的生成blaze-html值的方
 法。另外，我们还能充分利用blaze-html的惊人性能。
@@ -123,6 +126,7 @@ NOTE: ++Html++数据类型以及我们提到的几个函数，都来自于blaze-
 类似的，我们也有++Css++/++ToCss++和++Javascript++/++ToJavascript++函数。这些会在编译时
 进行一些合法性校验，以保证我们不会不小心在CSS里嵌入HTML代码。
 
+[caption="注意"]
 [NOTE]
 ====
 CSS模板的另一个优势是有一些颜色和单位的辅助数据类型。比如：
@@ -180,6 +184,7 @@ renderMyRoute Home = "http://example.com/profile/home"
 renderMyRoute Time = "http://example.com/display/time"
 ----
 
+[caption="注意"]
 [NOTE]
 ====
 URL呈现函数实际上比这个要复杂一些。它们需要表示请求参数(query
@@ -483,6 +488,7 @@ $doctype 5
 ----
 
 
+[caption="注意"]
 NOTE: 还有一种旧的但仍被支持的语法：三个感叹号(++!!!++)。你可能在代码里还见过这
 种用法。我们不打算移除它，但通常来说，用++$doctype++更易读。
 
@@ -582,6 +588,7 @@ Cassius是空格敏感的Lucius版本。在概要中我们已经提到，它和L
 Julius是这四种语言里最简单的。实际上，有人甚至会说它就是Javascript。Julius可以
 使用我们提过的三种形式的插值，除此以外，不会对内容做任何转换。
 
+[caption="注意"]
 NOTE: 如果你在Yesod脚手架站点中使用了Julius，你可能会发现你的Javascript被自动
 压缩了。这不是Julius的特性；而是因为Yesod使用了hjsmin包来压缩Julius的输出。
 
@@ -597,6 +604,7 @@ Haskell代码。
 重载模式:: 上面两种方法在修改代码后都需要完全重编译。在重载模式中，你的模板放
 在外部文件里，通过Haskell模板调用。但在运行时，外部文件每次都重新解析。
 
+[caption="注意"]
 NOTE: Hamlet不能使用重载模式，Cassius、Lucius和Julius可以。Hamlet里有太多复杂
 的功能直接依赖于Haskell编译器，因此无法在运行时重新实现。
 
